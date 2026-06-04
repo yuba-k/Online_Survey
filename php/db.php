@@ -10,12 +10,14 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/logger.php';
+
 // ========================================
 // 1. DB接続設定
 // ========================================
-$dsn = getenv('DB_DSN') ?: 'pgsql:host=127.0.0.1;port=5432;dbname=mydb;options=--client_encoding=UTF8';  //修正必要
-$db_user = getenv('DB_USER') ?: 'postgres';
-$db_pass = getenv('DB_PASS') ?: '';
+$dsn = getenv('DB_DSN') ?: 'pgsql:host=172.18.10.28;port=5432;dbname=group1db;options=--client_encoding=UTF8';
+$db_user = getenv('DB_USER') ?: 'group1';
+$db_pass = getenv('DB_PASS') ?: 'Group1';
 $pdo = null;
 
 try {
@@ -32,18 +34,79 @@ try {
 // ========================================
 // 2. エラー処理ユーティリティ
 // ========================================
-//修正必要。ゆばちゃんが作成したプログラムの関数を使うようにするため。この関数はテストの時は残すが、本番はコメント文にする。
 /**
  * DB接続・SQL実行エラー時にエラーメッセージを表示する
  */
 function renderDbErrorModal(PDOException $e): void
 {
+    $errorMessage = sprintf(
+        '%s in %s on line %d [code=%d]',
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $e->getCode()
+    );
+    writeLog('db', 'ERROR', $errorMessage);
+    // API からの呼び出しかどうか判定するユーティリティ
+    $isApi = false;
+    if (php_sapi_name() === 'cli') {
+        $isApi = false;
+    } else {
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $xhr = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+        $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+        if (stripos($accept, 'application/json') !== false) {
+            $isApi = true;
+        } elseif (strcasecmp($xhr, 'XMLHttpRequest') === 0) {
+            $isApi = true;
+        } elseif ($script === 'api.php') {
+            $isApi = true;
+        }
+    }
+
+    // ダウンロードスクリプトかどうか判定（download.php の場合はバイナリ期待）
+    $isDownload = false;
+    if (!isset($script)) {
+        $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    }
+    if ($script === 'download.php') {
+        $isDownload = true;
+    }
+
+    // 出力前に既存のバッファを消す（HTMLやバイナリ混入を防ぐ）
+    while (ob_get_level()) {
+        @ob_end_clean();
+    }
+
+    // 共通ステータス
+    http_response_code(500);
+
+    // API 呼び出しなら JSON でエラーを返す
+    if ($isApi) {
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'status' => 'error',
+            'message' => '通信が切れました。もう一度お試しください。'
+        ]);
+        exit;
+    }
+
+    // ダウンロード系はプレーンテキストで短いメッセージを返して終了
+    if ($isDownload) {
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo '通信が切れました。ダウンロードを中止しました。';
+        exit;
+    }
+
+    // 通常の画面表示向けに従来どおり HTML を出す
     $message = '通信が切れました。もう一度お試しください。';
     $safeMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
     header('Content-Type: text/html; charset=UTF-8');
     echo '<!doctype html><html><head><meta charset="UTF-8"><title>DB Error</title></head><body>';
     echo '<script>window.onload = function() { alert("' . $safeMessage . '"); };</script>';
     echo '</body></html>';
+    exit;
 }
 
 // ========================================
