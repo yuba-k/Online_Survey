@@ -206,11 +206,11 @@ function escapeHTML(str) {
               .replace(/'/g, "&#039;");
 }
 
-function renderComments(comments) { [cite: 56]
+function renderComments(comments) {
 
-    let html = ""; [cite: 56]
+    let html = "";
 
-    comments.forEach(c => { [cite: 57]
+    comments.forEach(c => {
         // 投稿直後のバグ・セキュリティ漏れを防ぐためにエスケープ処理を適用
         const safeName = escapeHTML(c.account_name || 'ゲスト利用者');
         const safeComment = escapeHTML(c.comment).replace(/\n/g, '<br>');
@@ -226,9 +226,10 @@ function renderComments(comments) { [cite: 56]
             </button>
         </div>
         `;
-    }); [cite: 57]
+    });
 
-    document.getElementById("comment-list").innerHTML = html; [cite: 58]
+    document.getElementById("comment-list").innerHTML = html;
+}
 
 </script>
 
