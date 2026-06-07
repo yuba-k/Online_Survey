@@ -1,311 +1,330 @@
 <?php
-// ============================================================
-// survey_form.php  アンケート作成・編集画面処理（db.php対応版）
-// ============================================================
-
-require_once __DIR__ . '/auth.php';
-require_once __DIR__ . '/security.php';
-require_once __DIR__ . '/db.php';
+// ===============================================================
+// survey_form.php
+// アンケート作成・編集（入力 → 確認 → 登録）
+// ===============================================================
 
 session_start();
+require_once 'auth.php';
+require_login(); // creator_id を取得するため必須
 
-// ------------------------------------------------------------
-// 1. ログインチェック
-// ------------------------------------------------------------
-$user = require_login(); // 未ログインならリダイレクト
+require_once 'db.php';
+require_once 'security.php';
+require_once 'log.php';
 
-// ------------------------------------------------------------
-// 2. 編集モード判定
-// ------------------------------------------------------------
-$editing    = false;
-$survey     = null;
-$surveySpec = null;
+// ---------------------------------------------------------------
+// モード判定
+// ---------------------------------------------------------------
+$mode = $_POST['mode'] ?? 'input';
+$errors = [];
 
-if (isset($_GET['id']) && ctype_digit($_GET['id'])) {
-    $editing   = true;
-    $survey_id = (int)$_GET['id'];
+// 編集モードの場合
+$edit_survey_id = $_GET['survey_id'] ?? null;
+$editing = false;
+$loaded_survey = null;
 
-    // db.php の関数を使って取得
-    $survey = get_survey_by_id($survey_id);
+if ($edit_survey_id) {
+    $editing = true;
+    $loaded_survey = executeQuery(
+        "SELECT * FROM surveys WHERE survey_id = :id",
+        [':id' => $edit_survey_id]
+    )->fetch();
 
-    if (!$survey || $survey['creator_id'] !== $user['user_id']) {
-        header('Location: index.php');
-        exit;
-    }
-
-    $surveySpec = json_decode($survey['survey_spec'], true);
-} else {
-    if (isset($_SESSION['saved_survey'])) {
-        $surveySpec = $_SESSION['saved_survey'];
+    if ($loaded_survey) {
+        $loaded_survey['survey_spec'] = decodeJson($loaded_survey['survey_spec']);
     }
 }
 
-// ------------------------------------------------------------
-// 3. POST 送信時（確認画面へ）
-// ------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// ---------------------------------------------------------------
+// 入力チェック（確認画面へ進むとき）
+// ---------------------------------------------------------------
+if ($mode === 'confirm') {
 
-    // CSRF チェック
-    if (!validate_csrf_token($_POST['csrf_token'] ?? '')) {
-        die('不正なリクエストです。');
+    // タイトル
+    $title = trim($_POST['title'] ?? '');
+    if (!checkWord($title, 100)) {
+        $errors[] = "タイトルに禁止文字または文字数超過があります。";
     }
 
-    // -----------------------------
-    // 3-1. 入力値取得 & サニタイズ
-    // -----------------------------
-    $title       = sanitize($_POST['title'] ?? '');
-    $description = sanitize($_POST['description'] ?? '');
-    $is_public   = isset($_POST['is_public']);
+    // 説明文
+    $description = trim($_POST['description'] ?? '');
+    if (!checkWord($description, 300)) {
+        $errors[] = "説明文に禁止文字または文字数超過があります。";
+    }
 
-    // datetime-local → ISO8601(+09:00)
-    $start_raw = $_POST['start_at'] ?? '';
-    $end_raw   = $_POST['end_at'] ?? '';
-
-    $start_at = $start_raw ? $start_raw . ':00+09:00' : '';
-    $end_at   = $end_raw ? $end_raw . ':00+09:00' : '';
+    // 期間
+    $start_at = $_POST['start_at'] ?? '';
+    $end_at   = $_POST['end_at'] ?? '';
+    if (!$start_at || !$end_at) {
+        $errors[] = "開始日と終了日は必須です。";
+    }
 
     // 集計設定
-    $agg_gender       = isset($_POST['agg_gender']);
-    $agg_age          = isset($_POST['agg_age']);
-    $agg_gender_split = isset($_POST['agg_gender_split']);
+    $aggregate_gender = isset($_POST['aggregate_gender']);
+    $aggregate_age = isset($_POST['aggregate_age']);
+    $aggregate_gender_split = isset($_POST['aggregate_gender_split']);
 
     // 質問
     $questions = [];
-    if (!empty($_POST['questions'])) {
+    if (isset($_POST['questions']) && is_array($_POST['questions'])) {
         foreach ($_POST['questions'] as $q) {
-            $qid   = $q['id'] ?? bin2hex(random_bytes(16));
-            $qtype = $q['type'] ?? '';
-            $qtext = sanitize($q['text'] ?? '');
 
-            $entry = [
-                'id'   => $qid,
-                'type' => $qtype,
-                'text' => $qtext,
-            ];
-
-            if ($qtype === 'single_choice' || $qtype === 'multiple_choice') {
-                $opts = $q['options'] ?? [];
-                $opts = array_map('sanitize', $opts);
-                $opts = array_values(array_filter($opts, fn($v) => $v !== ''));
-                $entry['options'] = $opts;
+            $q_text = trim($q['text'] ?? '');
+            if (!checkWord($q_text, 200)) {
+                $errors[] = "質問文に禁止文字または文字数超過があります。";
             }
 
-            $questions[] = $entry;
+            $q_type = $q['type'] ?? 'single_choice';
+            $q_display = $q['result_display'] ?? 'bar';
+
+            // 選択肢
+            $opts = [];
+            if (isset($q['options']) && is_array($q['options'])) {
+                foreach ($q['options'] as $opt) {
+                    $opt = trim($opt);
+                    if ($opt !== '') {
+                        if (!checkWord($opt, 100)) {
+                            $errors[] = "選択肢に禁止文字または文字数超過があります。";
+                        }
+                        $opts[] = $opt;
+                    }
+                }
+            }
+
+            $questions[] = [
+                'id' => generateUuid(),
+                'text' => $q_text,
+                'type' => $q_type,
+                'options' => $opts,
+                'result_display' => $q_display
+            ];
         }
     }
 
-    // -----------------------------
-    // 3-2. survey_spec JSON 構築
-    // -----------------------------
-    $survey_spec = [
-        'title'       => $title,
-        'description' => $description,
-        'is_public'   => $is_public,
-        'period'      => [
-            'start' => $start_at,
-            'end'   => $end_at,
-        ],
-        'aggregate'   => [
-            'gender'       => $agg_gender,
-            'age'          => $agg_age,
-            'gender_split' => $agg_gender_split,
-        ],
-        'questions'   => $questions,
-    ];
-
-    // -----------------------------
-    // 3-3. バリデーション
-    // -----------------------------
-    $errors = [];
-
-    if ($title === '') {
-        $errors[] = 'タイトルは必須です。';
-    } elseif (mb_strlen($title) > 255) {
-        $errors[] = 'タイトルは255文字以内で入力してください。';
+    if (empty($questions)) {
+        $errors[] = "質問は1つ以上必要です。";
     }
 
-    if (!$start_at || !$end_at) {
-        $errors[] = '公開期間は必須です。';
-    } elseif (strtotime($start_at) >= strtotime($end_at)) {
-        $errors[] = '公開期間の開始日時は終了日時より前である必要があります。';
-    }
-
-    if (count($questions) === 0) {
-        $errors[] = '質問は1つ以上必要です。';
-    }
-
-    foreach ($questions as $i => $q) {
-        if ($q['text'] === '') {
-            $errors[] = '質問' . ($i + 1) . 'の質問文は必須です。';
-        }
-        if ($q['type'] === '') {
-            $errors[] = '質問' . ($i + 1) . 'のタイプは必須です。';
-        }
-        if (($q['type'] === 'single_choice' || $q['type'] === 'multiple_choice')
-            && empty($q['options'])) {
-            $errors[] = '質問' . ($i + 1) . 'の選択肢は1つ以上必要です。';
-        }
-    }
-
+    // エラーがあれば入力画面へ戻す
     if (!empty($errors)) {
-        $_SESSION['form_errors']  = $errors;
-        $_SESSION['saved_survey'] = $survey_spec;
-
-        $redirect = $editing ? "survey_form.php?id={$survey_id}" : "survey_form.php";
-        header("Location: $redirect");
-        exit;
+        writeLog('survey_form', 'WARN', '入力エラー: ' . implode(',', $errors));
+        $mode = 'input';
     }
 
-    // -----------------------------
-    // 3-4. 確認画面へ渡す
-    // -----------------------------
-    $_SESSION['confirm_survey']    = $survey_spec;
-    $_SESSION['editing_survey_id'] = $editing ? $survey_id : null;
+} elseif ($mode === 'register') {
 
-    header('Location: confirm_survey.php');
-    exit;
+    // -----------------------------------------------------------
+    // 登録処理
+    // -----------------------------------------------------------
+    try {
+        $creator_id = $_SESSION['user_id'];
+
+        $title = $_POST['title'];
+        $description = $_POST['description'];
+        $start_at = $_POST['start_at'];
+        $end_at = $_POST['end_at'];
+
+        $spec = [
+            'description' => $description,
+            'aggregate' => [
+                'gender' => isset($_POST['aggregate_gender']),
+                'age' => isset($_POST['aggregate_age']),
+                'gender_split' => isset($_POST['aggregate_gender_split'])
+            ],
+            'questions' => json_decode($_POST['questions_json'], true)
+        ];
+
+        if ($editing) {
+            update_survey((int)$edit_survey_id, [
+                'title' => $title,
+                'survey_spec' => $spec,
+                'start_at' => $start_at,
+                'end_at' => $end_at
+            ]);
+            writeLog('survey_form', 'INFO', "アンケート更新成功 ID={$edit_survey_id}");
+            header("Location: index.php");
+            exit;
+        } else {
+            $question_key = insert_survey($creator_id, $title, $spec, $start_at, $end_at);
+            writeLog('survey_form', 'INFO', "アンケート作成成功 key={$question_key}");
+            header("Location: index.php");
+            exit;
+        }
+
+    } catch (Throwable $e) {
+        writeLog('survey_form', 'ERROR', $e->getMessage());
+        $errors[] = "登録中にエラーが発生しました。";
+        $mode = 'input';
+    }
 }
 
-// ------------------------------------------------------------
-// 4. 画面表示用の初期値セット
-// ------------------------------------------------------------
-$view = [
-    'title'       => $surveySpec['title']       ?? '',
-    'description' => $surveySpec['description'] ?? '',
-    'is_public'   => $surveySpec['is_public']   ?? false,
-    'start_at'    => '',
-    'end_at'      => '',
-    'aggregate'   => [
-        'gender'       => $surveySpec['aggregate']['gender']       ?? false,
-        'age'          => $surveySpec['aggregate']['age']          ?? false,
-        'gender_split' => $surveySpec['aggregate']['gender_split'] ?? false,
-    ],
-    'questions'   => $surveySpec['questions']   ?? [],
-];
-
-// datetime-local 形式に変換
-if (!empty($surveySpec['period']['start'])) {
-    $view['start_at'] = date('Y-m-d\TH:i', strtotime($surveySpec['period']['start']));
-}
-if (!empty($surveySpec['period']['end'])) {
-    $view['end_at'] = date('Y-m-d\TH:i', strtotime($surveySpec['period']['end']));
-}
-
-$errors = $_SESSION['form_errors'] ?? [];
-unset($_SESSION['form_errors']);
-
-$csrf_token = generate_csrf_token();
-
+// ---------------------------------------------------------------
+// HTML 表示
+// ---------------------------------------------------------------
 ?>
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <title><?= $editing ? 'アンケート編集' : 'アンケート作成' ?></title>
+<meta charset="UTF-8">
+<title>アンケート作成</title>
+<style>
+.question-block { border:1px solid #ccc; padding:10px; margin:10px 0; }
+.option-block { margin-left:20px; }
+</style>
 </head>
 <body>
 
-<?php include __DIR__ . '/header.php'; ?>
+<?php include 'header.php'; ?>
 
-<h1><?= $editing ? 'アンケート編集' : 'アンケート作成' ?></h1>
+<div style="margin-top:80px; max-width:900px; margin-left:auto; margin-right:auto;">
+
+<h1>アンケート作成</h1>
 
 <?php if (!empty($errors)): ?>
-    <div style="color:red;">
-        <ul>
-            <?php foreach ($errors as $e): ?>
-                <li><?= htmlspecialchars($e, ENT_QUOTES, 'UTF-8') ?></li>
-            <?php endforeach; ?>
-        </ul>
-    </div>
+<div style="color:red;">
+    <?php foreach ($errors as $e): ?>
+        <p><?= htmlspecialchars($e) ?></p>
+    <?php endforeach; ?>
+</div>
 <?php endif; ?>
 
+<?php if ($mode === 'input'): ?>
+
 <form method="post">
-    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
 
-    <label>タイトル</label><br>
-    <input type="text" name="title" size="60"
-           value="<?= htmlspecialchars($view['title']) ?>"><br><br>
+    <input type="hidden" name="mode" value="confirm">
 
-    <label>説明文</label><br>
-    <textarea name="description" rows="4" cols="60"><?= htmlspecialchars($view['description']) ?></textarea><br><br>
+    <label>タイトル：</label><br>
+    <input type="text" name="title" value="<?= htmlspecialchars($loaded_survey['title'] ?? '') ?>" style="width:100%;"><br><br>
 
-    <label>
-        <input type="checkbox" name="is_public" <?= $view['is_public'] ? 'checked' : '' ?>>
-        公開する
-    </label><br><br>
+    <label>説明文：</label><br>
+    <textarea name="description" style="width:100%; height:80px;"><?= htmlspecialchars($loaded_survey['survey_spec']['description'] ?? '') ?></textarea><br><br>
 
-    <label>公開期間</label><br>
-    <input type="datetime-local" name="start_at" value="<?= $view['start_at'] ?>">
-    〜
-    <input type="datetime-local" name="end_at" value="<?= $view['end_at'] ?>"><br><br>
+    <label>開始日：</label>
+    <input type="date" name="start_at" value="<?= htmlspecialchars($loaded_survey['start_at'] ?? '') ?>">
+    <label>終了日：</label>
+    <input type="date" name="end_at" value="<?= htmlspecialchars($loaded_survey['end_at'] ?? '') ?>"><br><br>
 
-    <h2>集計設定</h2>
-    <label><input type="checkbox" name="agg_gender" <?= $view['aggregate']['gender'] ? 'checked' : '' ?>> 性別で集計</label><br>
-    <label><input type="checkbox" name="agg_age" <?= $view['aggregate']['age'] ? 'checked' : '' ?>> 年齢で集計</label><br>
-    <label><input type="checkbox" name="agg_gender_split" <?= $view['aggregate']['gender_split'] ? 'checked' : '' ?>> 男女別で集計</label><br><br>
+    <h3>集計設定</h3>
+    <label><input type="checkbox" name="aggregate_gender" <?= !empty($loaded_survey['survey_spec']['aggregate']['gender']) ? 'checked' : '' ?>> 性別</label>
+    <label><input type="checkbox" name="aggregate_age" <?= !empty($loaded_survey['survey_spec']['aggregate']['age']) ? 'checked' : '' ?>> 年齢</label>
+    <label><input type="checkbox" name="aggregate_gender_split" <?= !empty($loaded_survey['survey_spec']['aggregate']['gender_split']) ? 'checked' : '' ?>> 男女別集計</label>
 
-    <h2>質問</h2>
-    <div id="question-area">
-        <?php foreach ($view['questions'] as $q): ?>
-            <?php
-            $qid   = htmlspecialchars($q['id']);
-            $qtext = htmlspecialchars($q['text']);
-            $qtype = $q['type'];
-            ?>
-            <div class="question-block">
-                <hr>
-                <input type="hidden" name="questions[<?= $qid ?>][id]" value="<?= $qid ?>">
+    <h3>質問一覧</h3>
 
-                <label>質問文</label><br>
-                <input type="text" name="questions[<?= $qid ?>][text]" size="60" value="<?= $qtext ?>"><br>
+    <div id="questions-area"></div>
 
-                <label>タイプ</label><br>
-                <select name="questions[<?= $qid ?>][type]">
-                    <option value="single_choice"   <?= $qtype === 'single_choice' ? 'selected' : '' ?>>単一選択</option>
-                    <option value="multiple_choice" <?= $qtype === 'multiple_choice' ? 'selected' : '' ?>>複数選択</option>
-                    <option value="text"            <?= $qtype === 'text' ? 'selected' : '' ?>>自由記述</option>
-                </select><br>
+    <button type="button" onclick="addQuestion()">＋ 質問を追加</button>
 
-                <?php if ($qtype !== 'text'): ?>
-                    <label>選択肢</label><br>
-                    <?php foreach ($q['options'] as $opt): ?>
-                        <input type="text" name="questions[<?= $qid ?>][options][]" value="<?= htmlspecialchars($opt) ?>"><br>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </div>
-        <?php endforeach; ?>
-    </div>
-
-    <button type="button" onclick="addQuestion()">質問を追加</button><br><br>
-
+    <br><br>
     <button type="submit">確認画面へ</button>
+
 </form>
 
 <script>
-function addQuestion() {
-    const area = document.getElementById('question-area');
-    const id   = crypto.randomUUID();
+let qIndex = 0;
 
-    const div = document.createElement('div');
-    div.className = 'question-block';
-    div.innerHTML = `
-        <hr>
-        <input type="hidden" name="questions[${id}][id]" value="${id}">
-        <label>質問文</label><br>
-        <input type="text" name="questions[${id}][text]" size="60"><br>
-        <label>タイプ</label><br>
-        <select name="questions[${id}][type]">
+function addQuestion(existing=null) {
+    const area = document.getElementById('questions-area');
+
+    const block = document.createElement('div');
+    block.className = 'question-block';
+    block.dataset.index = qIndex;
+
+    block.innerHTML = `
+        <label>質問文：</label><br>
+        <input type="text" name="questions[${qIndex}][text]" style="width:100%;" value="${existing?.text ?? ''}"><br><br>
+
+        <label>質問タイプ：</label>
+        <select name="questions[${qIndex}][type]">
             <option value="single_choice">単一選択</option>
             <option value="multiple_choice">複数選択</option>
             <option value="text">自由記述</option>
-        </select><br>
-        <label>選択肢（選択式の場合）</label><br>
-        <input type="text" name="questions[${id}][options][]" placeholder="選択肢1"><br>
-        <input type="text" name="questions[${id}][options][]" placeholder="選択肢2"><br>
+        </select><br><br>
+
+        <label>結果表示タイプ：</label>
+        <select name="questions[${qIndex}][result_display]">
+            <option value="bar">棒グラフ</option>
+            <option value="pie">円グラフ</option>
+            <option value="line">折れ線</option>
+            <option value="table">表形式</option>
+        </select><br><br>
+
+        <div class="option-block">
+            <label>選択肢：</label>
+            <div class="options"></div>
+            <button type="button" onclick="addOption(${qIndex})">＋ 選択肢追加</button>
+        </div>
+
+        <button type="button" onclick="this.parentNode.remove()">この質問を削除</button>
     `;
-    area.appendChild(div);
+
+    area.appendChild(block);
+    qIndex++;
+}
+
+function addOption(qi) {
+    const opts = document.querySelector(`.question-block[data-index="${qi}"] .options`);
+    const opt = document.createElement('div');
+    opt.innerHTML = `<input type="text" name="questions[${qi}][options][]" style="width:80%;"> <button type="button" onclick="this.parentNode.remove()">削除</button>`;
+    opts.appendChild(opt);
 }
 </script>
+
+<?php endif; ?>
+
+<?php if ($mode === 'confirm'): ?>
+
+<h2>確認画面</h2>
+
+<form method="post">
+    <input type="hidden" name="mode" value="register">
+
+    <p><strong>タイトル：</strong> <?= htmlspecialchars($title) ?></p>
+    <input type="hidden" name="title" value="<?= htmlspecialchars($title) ?>">
+
+    <p><strong>説明文：</strong><br><?= nl2br(htmlspecialchars($description)) ?></p>
+    <input type="hidden" name="description" value="<?= htmlspecialchars($description) ?>">
+
+    <p><strong>期間：</strong> <?= htmlspecialchars($start_at) ?> ～ <?= htmlspecialchars($end_at) ?></p>
+    <input type="hidden" name="start_at" value="<?= htmlspecialchars($start_at) ?>">
+    <input type="hidden" name="end_at" value="<?= htmlspecialchars($end_at) ?>">
+
+    <h3>集計設定</h3>
+    <ul>
+        <li>性別：<?= $aggregate_gender ? 'ON' : 'OFF' ?></li>
+        <li>年齢：<?= $aggregate_age ? 'ON' : 'OFF' ?></li>
+        <li>男女別集計：<?= $aggregate_gender_split ? 'ON' : 'OFF' ?></li>
+    </ul>
+
+    <input type="hidden" name="aggregate_gender" value="<?= $aggregate_gender ? 1 : 0 ?>">
+    <input type="hidden" name="aggregate_age" value="<?= $aggregate_age ? 1 : 0 ?>">
+    <input type="hidden" name="aggregate_gender_split" value="<?= $aggregate_gender_split ? 1 : 0 ?>">
+
+    <h3>質問一覧</h3>
+    <ul>
+        <?php foreach ($questions as $q): ?>
+            <li>
+                <strong><?= htmlspecialchars($q['text']) ?></strong><br>
+                タイプ：<?= htmlspecialchars($q['type']) ?><br>
+                表示：<?= htmlspecialchars($q['result_display']) ?><br>
+                <?php if (!empty($q['options'])): ?>
+                    選択肢：<?= implode(', ', array_map('htmlspecialchars', $q['options'])) ?>
+                <?php endif; ?>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+
+    <input type="hidden" name="questions_json" value='<?= json_encode($questions, JSON_UNESCAPED_UNICODE) ?>'>
+
+    <button type="submit">登録する</button>
+    <button type="button" onclick="history.back()">戻る</button>
+
+</form>
+
+<?php endif; ?>
+
+</div>
 
 </body>
 </html>
