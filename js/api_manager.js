@@ -36,34 +36,57 @@ async function postComment() {
     }
 
     // 2. api.phpへ送るデータの梱包
+    const API_ENDPOINT = '/php/api.php';
     const formData = new FormData();
     formData.append('action', 'comment');
     formData.append('survey_id', surveyIdInput.value);
     formData.append('text', text);
 
+    // CSRF トークンを付与（meta / hidden input / form 内の順で探索）
+    const token = getCsrfToken();
+    if (!token) {
+        alert('セッション情報が見つかりません。ページを再読み込みしてください。');
+        return;
+    }
+    formData.append('csrf_token', token);
+
     // 3. 通信実行
     try {
-        const response = await fetch('api.php', {
+        const response = await fetch(API_ENDPOINT, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: { 'X-CSRF-Token': token }
         });
+
+        if (!response.ok) {
+            const contentType = response.headers.get('content-type') || '';
+            let msg = `通信エラー: ${response.status}`;
+            if (contentType.includes('application/json')) {
+                const err = await response.json().catch(() => null);
+                if (err && err.message) msg = err.message;
+            }
+            alert(msg);
+            return;
+        }
+
         const data = await response.json();
 
         // 4. 通信成功時の画面更新処理
         if (data.status === 'success') {
             // サーバーから送られてきたHTML(コメント部品)を、リストの末尾に挿入
             const commentList = document.getElementById('comment-list');
-            commentList.insertAdjacentHTML('beforeend', data.comment_html);
-            
+            if (commentList && data.comment_html) {
+                commentList.insertAdjacentHTML('beforeend', data.comment_html);
+            }
             // 連続投稿できるように入力欄を空に戻す
             textInput.value = '';
         } else {
             // NGワード等、サーバー側で弾かれた場合のメッセージを表示
-            alert(data.message);
+            alert(data.message || '投稿に失敗しました。');
         }
     } catch (error) {
-        console.error("通信エラー:", error);
-        alert("サーバーとの通信に失敗しました。");
+        console.error('通信エラー:', error);
+        alert('サーバーとの通信に失敗しました。');
     }
 }
 
@@ -74,16 +97,30 @@ async function postComment() {
  */
 async function toggleLike(commentId) {
     if (!commentId) return;
-
+    const API_ENDPOINT = '/php/api.php';
     const formData = new FormData();
     formData.append('action', 'like');
     formData.append('comment_id', commentId);
 
+    const token = getCsrfToken();
+    if (!token) {
+        console.warn('CSRF token missing; like aborted');
+        return;
+    }
+    formData.append('csrf_token', token);
+
     try {
-        const response = await fetch('api.php', {
+        const response = await fetch(API_ENDPOINT, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: { 'X-CSRF-Token': token }
         });
+
+        if (!response.ok) {
+            console.warn('いいね通信エラー', response.status);
+            return;
+        }
+
         const data = await response.json();
 
         if (data.status === 'success') {
@@ -96,11 +133,11 @@ async function toggleLike(commentId) {
             // キリ番などの条件を満たした場合、音声演出を実行
             if (data.play_voice) {
                 const audio = new Audio('assets/sounds/iine_voice.mp3');
-                audio.play().catch(e => console.warn("音声再生がブラウザにブロックされました", e));
+                audio.play().catch(e => console.warn('音声再生がブラウザにブロックされました', e));
             }
         }
     } catch (error) {
-        console.error("いいね処理エラー:", error);
+        console.error('いいね処理エラー:', error);
     }
 }
 /**
@@ -111,26 +148,69 @@ async function toggleLike(commentId) {
 async function autoSave(type) {
     const formElement = document.getElementById('main-form');
     if (!formElement) return;
-
     // フォームの内容をまるごと取得
     const formDataObj = Object.fromEntries(new FormData(formElement));
-    
+
+    const API_ENDPOINT = '/php/api.php';
     const formData = new FormData();
     formData.append('action', 'save');
     formData.append('type', type);
     formData.append('payload', JSON.stringify(formDataObj));
 
+    const token = getCsrfToken();
+    if (!token) {
+        console.debug('AutoSave: CSRF token not found; skipping silent save');
+        return;
+    }
+    formData.append('csrf_token', token);
+
     try {
-        // fetchの成否に関わらず、画面には一切何も出しません
-        await fetch('api.php', {
+        const response = await fetch(API_ENDPOINT, {
             method: 'POST',
-            body: formData
+            body: formData,
+            headers: { 'X-CSRF-Token': token }
         });
-        
+
+        if (!response.ok) {
+            console.debug('Silent Save failed, server error', response.status);
+            return;
+        }
+
+        const data = await response.json().catch(() => null);
+        if (data && data.status === 'success' && data.saved_at) {
+            const saveStatus = document.getElementById('save-status');
+            if (saveStatus) saveStatus.textContent = `Saved at ${data.saved_at}`;
+        }
+
     } catch (error) {
         // 開発時のデバッグ用にコンソールにだけ残しておく
-        console.error("Silent Save Error (Backend only):", error);
+        console.error('Silent Save Error (Backend only):', error);
     }
+}
+
+/**
+ * CSRF トークンを DOM から探索して返す。存在しない場合は null を返す。
+ */
+function getCsrfToken() {
+    // meta tag を優先
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (meta && meta.content) return meta.content;
+
+    // id ベースの隠し input
+    const byId = document.getElementById('csrf_token');
+    if (byId && byId.value) return byId.value;
+
+    // フォーム内の input[name="csrf_token"]
+    const form = document.getElementById('main-form');
+    if (form) {
+        const input = form.querySelector('input[name="csrf_token"]');
+        if (input && input.value) return input.value;
+    }
+
+    // グローバル変数として埋められている場合
+    if (typeof window.CSRF_TOKEN !== 'undefined') return window.CSRF_TOKEN;
+
+    return null;
 }
 
 /**
