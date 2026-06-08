@@ -1,5 +1,5 @@
 <?php
-require_once '../php/db.php';
+require_once __DIR__ . '/db.php';
 
 header('Content-Type: text/html; charset=UTF-8');
 echo "<!doctype html><html><head><meta charset=\"UTF-8\"><title>DB操作関数テスト</title></head><body>";
@@ -132,6 +132,11 @@ if ($user) {
         if ($comment !== false) {
             $likeResult = toggle_like((int)$user['user_id'], (int)$comment['comment_id'], 1);
             dumpValue($likeResult);
+
+            printSection('7b. get_comments_by_survey_id() のテスト');
+            $comments = get_comments_by_survey_id($surveyId);
+            echo 'コメント件数: ' . count($comments) . '<br>';
+            dumpValue($comments);
         } else {
             echo 'コメント取得に失敗しました。';
         }

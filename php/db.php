@@ -15,6 +15,7 @@ require_once __DIR__ . '/logger.php';
 // ========================================
 // 1. DB接続設定
 // ========================================
+
 if (PHP_OS_FAMILY === 'Windows') {
     $host = "localhost";
 }else{
@@ -39,6 +40,7 @@ try {
 // ========================================
 // 2. エラー処理ユーティリティ
 // ========================================
+
 /**
  * DB接続・SQL実行エラー時にエラーメッセージを表示する
  */
@@ -417,6 +419,27 @@ function insert_comment(int $survey_id, int $user_id, string $content): bool
 }
 
 /**
+ * アンケートIDに紐づくコメント一覧を取得する
+ */
+function get_comments_by_survey_id(int $survey_id): array
+{
+    $sql = 'SELECT c.comment_id,
+                   c.content AS comment,
+                   u.account_name,
+                   c.created_at,
+                   COUNT(l.like_id) AS like_count
+            FROM comments c
+            JOIN users u ON c.user_id = u.user_id
+            LEFT JOIN likes l ON c.comment_id = l.comment_id
+            WHERE c.survey_id = :survey_id
+            GROUP BY c.comment_id, c.content, u.account_name, c.created_at
+            ORDER BY c.created_at DESC';
+
+    $stmt = executeQuery($sql, [':survey_id' => $survey_id]);
+    return $stmt->fetchAll();
+}
+
+/**
  * いいねの追加・解除を切り替え、現在の件数を返す
  */
 function toggle_like(int $user_id, int $comment_id, int $like_type): array
@@ -445,13 +468,12 @@ function toggle_like(int $user_id, int $comment_id, int $like_type): array
 }
 
 // ========================================
-// 7. コメント・いいね関連処理
+// 8. forbidden_words関連処理
 // ========================================
 
 /**
  * データベースから禁止文字列（NGワード）の一覧を取得する
  */
-
 function get_forbidden_words(): array
 {
     $sql = 'SELECT word FROM forbidden_words';
