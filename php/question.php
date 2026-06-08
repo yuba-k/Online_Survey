@@ -1,7 +1,7 @@
 <?php
 require "db.php";
 require_once 'auth.php';
-
+require_once 'header.php';
 $q_key = $_GET['question_id'] ?? '';//テストデータ対応
 
 start_sess();
@@ -100,6 +100,22 @@ for ($i=0; $i<$len; $i++){
         echo "<input type='text' name='q{$i}' value='{$value}' required>";
     }
     echo "</div>"; 
+}
+if(isset($_SESSION["user_id"])){
+
+}else{
+    echo "<h2>性別を選択してください</h2>";
+    echo "<input type='checkbox' name='Q_gender' value='man'>";
+    echo "<label>男性</label><br>";
+    echo "<input type='checkbox' name='Q_gender' value='woman'>";
+    echo "<label>女性</label><br>";
+    echo "<input type='checkbox' name='Q_gender' value='other'>";
+    echo "<label>その他</label><br>";
+    echo "<input type='checkbox' name='Q\gender' value='doNotAnswer'>";
+    echo "<label>回答しない</label><br>";
+    echo "<h2>生年月日を入力してください</h2>";
+    $max_date = date('Y-m-d');
+    echo "<input type='date' name='birthday' min='1900-01-01' max='{$max_date}' required><br>";
 }
 echo "<button type='submit'>送信</button>";
 echo "</form>";
