@@ -8,7 +8,7 @@
 -->
 <?php
 //require "db.php";
-require "logger.php";
+require_once "logger.php";
 function checkWord(string $user_input, int $max_length = 50):bool{
     try{
         $normalize = [" ","　",".","．","。",",","，","、"];
