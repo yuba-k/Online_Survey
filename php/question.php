@@ -1,7 +1,8 @@
 <?php
 require "db.php";
 require_once 'auth.php';
-require_once 'header.php';
+//require_once 'header.php';
+require_once 'security.php';
 $q_key = $_GET['question_id'] ?? '';//テストデータ対応
 
 start_sess();
@@ -39,13 +40,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = "質問".($index + 1)."は必須です";
             continue;
         }
-
         if (
             !is_array($_POST[$key]) &&
             trim($_POST[$key]) === ''
         ) {
             $errors[] = "質問".($index + 1)."は必須です";
         }
+        if (!is_array($_POST[$key]) && checkWord($_POST[$key])){
+            $errors[] = "入力できない文字が含まれます"; 
+        }  
     }
 
     foreach ($errors as $error) {
