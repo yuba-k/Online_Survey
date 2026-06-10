@@ -1,5 +1,5 @@
 <?php
-require_once 'db.php';
+require_once '../php/db.php';
 
 header('Content-Type: text/html; charset=UTF-8');
 echo "<!doctype html><html><head><meta charset=\"UTF-8\"><title>DB操作関数テスト</title></head><body>";
@@ -121,9 +121,40 @@ if ($user) {
         }
     }
 
-    // 7. コメント登録といいね切り替えの挙動を確認する。
+    // 7. get_homepage_survey_list() / parse_survey_duration() のテスト
+    //    成功条件: 一覧取得と所要時間の文字列化が動作すること。
+    printSection('7. get_homepage_survey_list() / parse_survey_duration() のテスト');
+    echo 'parse_survey_duration(estimated_minutes=3): ' . htmlspecialchars(parse_survey_duration(['estimated_minutes' => 3]), ENT_QUOTES, 'UTF-8') . '<br>';
+    echo 'parse_survey_duration(duration=\'約5分\'): ' . htmlspecialchars(parse_survey_duration(['duration' => '約5分']), ENT_QUOTES, 'UTF-8') . '<br>';
+    echo 'parse_survey_duration(questions x2): ' . htmlspecialchars(parse_survey_duration(['questions' => [['q' => '1'], ['q' => '2']]]), ENT_QUOTES, 'UTF-8') . '<br>';
+    echo 'parse_survey_duration(empty): ' . htmlspecialchars(parse_survey_duration([]), ENT_QUOTES, 'UTF-8') . '<br>';
+
+    if (!empty($survey) && !empty($user)) {
+        $createdList = get_homepage_survey_list('作成したアンケート', '新着', (int)$user['user_id']);
+        echo '作成したアンケート 件数: ' . count($createdList) . '<br>';
+        dumpValue($createdList);
+
+        $answeredList = get_homepage_survey_list('回答したアンケート', '回答数', (int)$user['user_id']);
+        echo '回答したアンケート 件数: ' . count($answeredList) . '<br>';
+        dumpValue($answeredList);
+
+        $allList = get_homepage_survey_list('アンケート', '開始期限');
+        echo 'アンケート(全) 件数: ' . count($allList) . '<br>';
+        dumpValue(array_slice($allList, 0, 5));
+
+        $expiredStart = date('c', strtotime('-3 days'));
+        $expiredEnd = date('c', strtotime('-1 day'));
+        insert_survey((int)$user['user_id'], '期限切れテストアンケート', ['questions' => [['q' => 'expired']]], $expiredStart, $expiredEnd);
+        $resultList = get_homepage_survey_list('調査結果', '新着', (int)$user['user_id']);
+        echo '調査結果 件数: ' . count($resultList) . '<br>';
+        dumpValue($resultList);
+    } else {
+        echo 'get_homepage_survey_list() のテストは、survey または user が存在しないためスキップされました。<br>';
+    }
+
+    // 8. コメント登録といいね切り替えの挙動を確認する。
     //    成功条件: コメントを追加し、toggle_like() でいいねの状態と件数が返ること。
-    printSection('7. insert_comment() / toggle_like() のテスト');
+    printSection('8. insert_comment() / toggle_like() のテスト');
     if (!empty($survey)) {
         $surveyId = (int)$survey['survey_id'];
         insert_comment($surveyId, (int)$user['user_id'], 'テストコメント');
@@ -132,6 +163,11 @@ if ($user) {
         if ($comment !== false) {
             $likeResult = toggle_like((int)$user['user_id'], (int)$comment['comment_id'], 1);
             dumpValue($likeResult);
+
+            printSection('7b. get_comments_by_survey_id() のテスト');
+            $comments = get_comments_by_survey_id($surveyId);
+            echo 'コメント件数: ' . count($comments) . '<br>';
+            dumpValue($comments);
         } else {
             echo 'コメント取得に失敗しました。';
         }

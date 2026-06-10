@@ -9,29 +9,110 @@
  */
 
 // 1. 外部依存ファイルの読み込み
-require_once 'db.php'; // DB ヘルパー関数を利用
+require_once __DIR__ . '/db.php'; // DB ヘルパー関数を利用
+// auth.php / security.php を利用してセッション・CSRF・NGワードを扱う
+if (file_exists(__DIR__ . '/auth.php')) {
+    require_once __DIR__ . '/auth.php';
+}
+if (file_exists(__DIR__ . '/security.php')) {
+    require_once __DIR__ . '/security.php';
+}
 
-
-// Minimal inline fallback for session / auth. Replace with real `auth.php` later.
-if (session_status() === PHP_SESSION_NONE) {
+// セッション開始（auth.php の start_sess があればそれを利用）
+if (function_exists('start_sess')) {
+    start_sess();
+} elseif (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+/**
+ * 現在のユーザーIDを返す。未ログインなら null を返す。
+ */
 function get_current_user_id(): ?int
 {
-    // If a real auth layer provides `$_SESSION['user_id']`, use it.
-    // Otherwise return null (anonymous). db.php expects null for unauthenticated users.
+    if (session_status() === PHP_SESSION_NONE) {
+        if (function_exists('start_sess')) start_sess(); else session_start();
+    }
     return isset($_SESSION['user_id']) ? (int)$_SESSION['user_id'] : null;
 }
 
-// Minimal inline fallback for content validation. Replace with real `security.php` later.
+/**
+ * リクエストから CSRF トークンを取得する（ヘッダまたはフォームフィールドを探す）
+ */
+function get_request_csrf_token(): ?string
+{
+    $token = null;
+    if (function_exists('getallheaders')) {
+        $headers = getallheaders();
+        foreach (['X-CSRF-Token', 'X-XSRF-TOKEN', 'x-csrf-token', 'x-xsrf-token'] as $h) {
+            if (!empty($headers[$h])) { $token = $headers[$h]; break; }
+        }
+    }
+
+    if (!$token) {
+        foreach (['HTTP_X_CSRF_TOKEN', 'HTTP_X_XSRF_TOKEN', 'HTTP_X_CSRFTOKEN'] as $s) {
+            if (!empty($_SERVER[$s])) { $token = $_SERVER[$s]; break; }
+        }
+    }
+
+    if (!$token && isset($_POST['csrf_token'])) {
+        $token = $_POST['csrf_token'];
+    }
+
+    return ($token === null || $token === '') ? null : (string)$token;
+}
+
+/**
+ * CSRF 検証。失敗したら JSON エラーで終了する。
+ */
+function validate_csrf(): void
+{
+    $token = get_request_csrf_token();
+    if ($token === null) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'CSRF token missing.']);
+        exit;
+    }
+
+    if (!isset($_SESSION['csrf_token']) || !hash_equals($_SESSION['csrf_token'], $token)) {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid CSRF token.']);
+        exit;
+    }
+}
+
+/**
+ * コンテンツの妥当性検査（security.php の checkWord を優先し、なければ簡易チェック）
+ */
 function isValidContent(?string $text): bool
 {
     if ($text === null) return false;
     $trimmed = trim($text);
     if ($trimmed === '') return false;
+
+    // security.php に checkWord があれば利用（最大長を大きめに指定）
+    if (function_exists('checkWord')) {
+        try {
+            return checkWord($trimmed, 2000);
+        } catch (Throwable $e) {
+            // フォールバックへ
+        }
+    }
+
     if (mb_strlen($trimmed) > 2000) return false;
-    // Project-specific NG words / filters should be added to security.php.
+
+    // DB に禁則語テーブルがあれば照合
+    if (function_exists('get_forbidden_words')) {
+        try {
+            $forbidden = get_forbidden_words();
+            foreach ($forbidden as $w) {
+                if ($w !== '' && mb_stripos($trimmed, $w) !== false) return false;
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
     return true;
 }
 
@@ -40,6 +121,7 @@ header('Content-Type: application/json; charset=utf-8');
 
 // 3. リクエストメソッドの検証 (POST以外は受け付けない)
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Invalid Request Method']);
     exit;
 }
@@ -49,11 +131,12 @@ $action = $_POST['action'] ?? '';
 
 try {
     switch ($action) {
-        
         // --- A. いいね処理 (Toggle Like) ---
         case 'like':
-            $comment_id = isset($_POST['comment_id']) ? (int)$_POST['comment_id'] : 0;
+            // CSRF と認証の検証
+            validate_csrf();
 
+            $comment_id = isset($_POST['comment_id']) ? (int)$_POST['comment_id'] : 0;
             $user_id = get_current_user_id();
 
             if ($comment_id <= 0) throw new Exception("Comment ID is required.");
@@ -74,6 +157,9 @@ try {
 
         // --- B. コメント投稿処理 ---
         case 'comment':
+            // CSRF と認証の検証
+            validate_csrf();
+
             $survey_id = isset($_POST['survey_id']) ? (int)$_POST['survey_id'] : 0;
             $raw_text = $_POST['text'] ?? '';
             $user_id = get_current_user_id();
@@ -83,15 +169,21 @@ try {
 
             // セキュリティチェック
             if (!isValidContent($raw_text)) {
+                http_response_code(400);
                 echo json_encode(['status' => 'error', 'message' => '不適切な内容が含まれています。']);
                 exit;
             }
 
-            // DB ヘルパーを使って挿入
+            // DB ヘルパーを使って挿入（db.php の insert_comment を利用）
             insert_comment($survey_id, $user_id, $raw_text);
 
-            // 新規コメントの ID を取得（AUTO_INCREMENT を想定）
-            $newId = (int)getPdo()->lastInsertId();
+            // コメントIDは PDO の lastInsertId から取得（DB/ドライバ依存のためフォールバックあり）
+            $newId = 0;
+            try {
+                $newId = (int)getPdo()->lastInsertId();
+            } catch (Throwable $e) {
+                // 取得できない場合は 0 のまま
+            }
 
             // フロント用 HTML を構築（XSS 保護）
             $safe_text = htmlspecialchars($raw_text, ENT_QUOTES, 'UTF-8');
@@ -109,8 +201,15 @@ try {
 
         // --- C. リアルタイム保存処理 (Session Update) ---
         case 'save':
+            // CSRF の検証（サイレントセーブでもトークンは要求する設計）
+            validate_csrf();
+
             $type = $_POST['type'] ?? 'draft'; // answer or survey
             $payload = json_decode($_POST['payload'] ?? '{}', true);
+
+            if (session_status() === PHP_SESSION_NONE) {
+                if (function_exists('start_sess')) start_sess(); else session_start();
+            }
 
             // セッション変数に保存（DB負荷を避け、メモリ上で管理）
             $_SESSION['autosave'][$type] = [

@@ -10,12 +10,20 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/logger.php';
+
 // ========================================
 // 1. DB接続設定
 // ========================================
-$dsn = getenv('DB_DSN') ?: 'pgsql:host=127.0.0.1;port=5432;dbname=mydb;options=--client_encoding=UTF8';  //修正必要
-$db_user = getenv('DB_USER') ?: 'postgres';
-$db_pass = getenv('DB_PASS') ?: '';
+
+if (PHP_OS_FAMILY === 'Windows') {
+    $host = "localhost";
+}else{
+    $host = "172.18.10.28";
+}
+$dsn = getenv('DB_DSN') ?: 'pgsql:host='.$host.';port=5432;dbname=group1db;options=--client_encoding=UTF8';
+$db_user = getenv('DB_USER') ?: 'group1';
+$db_pass = getenv('DB_PASS') ?: 'Group1';
 $pdo = null;
 
 try {
@@ -32,18 +40,80 @@ try {
 // ========================================
 // 2. エラー処理ユーティリティ
 // ========================================
-//修正必要。ゆばちゃんが作成したプログラムの関数を使うようにするため。この関数はテストの時は残すが、本番はコメント文にする。
+
 /**
  * DB接続・SQL実行エラー時にエラーメッセージを表示する
  */
 function renderDbErrorModal(PDOException $e): void
 {
+    $errorMessage = sprintf(
+        '%s in %s on line %d [code=%d]',
+        $e->getMessage(),
+        $e->getFile(),
+        $e->getLine(),
+        $e->getCode()
+    );
+    writeLog('db', 'ERROR', $errorMessage);
+    // API からの呼び出しかどうか判定するユーティリティ
+    $isApi = false;
+    if (php_sapi_name() === 'cli') {
+        $isApi = false;
+    } else {
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $xhr = $_SERVER['HTTP_X_REQUESTED_WITH'] ?? '';
+        $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+
+        if (stripos($accept, 'application/json') !== false) {
+            $isApi = true;
+        } elseif (strcasecmp($xhr, 'XMLHttpRequest') === 0) {
+            $isApi = true;
+        } elseif ($script === 'api.php') {
+            $isApi = true;
+        }
+    }
+
+    // ダウンロードスクリプトかどうか判定（download.php の場合はバイナリ期待）
+    $isDownload = false;
+    if (!isset($script)) {
+        $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    }
+    if ($script === 'download.php') {
+        $isDownload = true;
+    }
+
+    // 出力前に既存のバッファを消す（HTMLやバイナリ混入を防ぐ）
+    while (ob_get_level()) {
+        @ob_end_clean();
+    }
+
+    // 共通ステータス
+    http_response_code(500);
+
+    // API 呼び出しなら JSON でエラーを返す
+    if ($isApi) {
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode([
+            'status' => 'error',
+            'message' => '通信が切れました。もう一度お試しください。'
+        ]);
+        exit;
+    }
+
+    // ダウンロード系はプレーンテキストで短いメッセージを返して終了
+    if ($isDownload) {
+        header('Content-Type: text/plain; charset=UTF-8');
+        echo '通信が切れました。ダウンロードを中止しました。';
+        exit;
+    }
+
+    // 通常の画面表示向けに従来どおり HTML を出す
     $message = '通信が切れました。もう一度お試しください。';
     $safeMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
     header('Content-Type: text/html; charset=UTF-8');
     echo '<!doctype html><html><head><meta charset="UTF-8"><title>DB Error</title></head><body>';
     echo '<script>window.onload = function() { alert("' . $safeMessage . '"); };</script>';
     echo '</body></html>';
+    exit;
 }
 
 // ========================================
@@ -207,6 +277,128 @@ function get_surveys_list(int $limit, int $offset): array
 }
 
 /**
+ * ホームページのアンケート一覧を取得する
+ *
+ * @param string $listType  一覧の種類（作成したアンケート / 回答したアンケート / アンケート / 調査結果）
+ * @param string $sortOrder 並び替え順（開始期限 / 新着 / 回答数）
+ * @param int|null $user_id ユーザーID（作成・回答・調査結果表示時に必要）
+ * @return array
+ */
+function get_homepage_survey_list(string $listType, string $sortOrder, ?int $user_id = null): array
+{
+    $typeMap = [
+        '作成したアンケート' => 'created',
+        '回答したアンケート' => 'answered',
+        'アンケート' => 'all',
+        '調査結果' => 'results',
+    ];
+    $orderMap = [
+        '開始期限' => 'COALESCE(s.end_at, CURRENT_TIMESTAMP) ASC',
+        '新着' => 's.created_at DESC',
+        '回答数' => 'COALESCE(resp.response_count, 0) DESC, s.created_at DESC',
+    ];
+
+    if (!isset($typeMap[$listType]) || !isset($orderMap[$sortOrder])) {
+        return [];
+    }
+
+    $type = $typeMap[$listType];
+    $orderBy = $orderMap[$sortOrder];
+
+    $sql = 'SELECT s.survey_id,
+                   s.title,
+                   s.end_at,
+                   u.account_name AS creator,
+                   COALESCE(resp.response_count, 0) AS response_count,
+                   s.survey_spec
+            FROM surveys s
+            JOIN users u ON u.user_id = s.creator_id
+            LEFT JOIN (
+                SELECT survey_id, COUNT(*) AS response_count
+                FROM responses
+                GROUP BY survey_id
+            ) resp ON resp.survey_id = s.survey_id';
+
+    $conditions = [];
+    $params = [];
+
+    switch ($type) {
+        case 'created':
+            if ($user_id === null) {
+                return [];
+            }
+            $conditions[] = 's.creator_id = :user_id';
+            $params[':user_id'] = $user_id;
+            break;
+        case 'answered':
+            if ($user_id === null) {
+                return [];
+            }
+            $conditions[] = 'EXISTS (SELECT 1 FROM responses r WHERE r.survey_id = s.survey_id AND r.user_id = :user_id)';
+            $params[':user_id'] = $user_id;
+            break;
+        case 'results':
+            $conditions[] = 's.end_at <= NOW()';
+            if ($user_id !== null) {
+                $conditions[] = 's.creator_id = :user_id';
+                $params[':user_id'] = $user_id;
+            }
+            break;
+        case 'all':
+        default:
+            break;
+    }
+
+    if ($conditions !== []) {
+        $sql .= ' WHERE ' . implode(' AND ', $conditions);
+    }
+
+    $sql .= ' ORDER BY ' . $orderBy;
+
+    $stmt = executeQuery($sql, $params);
+    $rows = $stmt->fetchAll();
+
+    foreach ($rows as &$row) {
+        $surveySpec = decodeJson($row['survey_spec'] ?? '');
+        $row['deadline'] = $row['end_at'];
+        $row['duration'] = parse_survey_duration($surveySpec);
+        unset($row['survey_spec'], $row['end_at']);
+    }
+
+    return array_map(static function (array $row): array {
+        return [
+            'survey_id' => (int)$row['survey_id'],
+            'title' => (string)$row['title'],
+            'deadline' => $row['deadline'] !== null ? $row['deadline'] : null,
+            'creator' => (string)$row['creator'],
+            'response_count' => (int)$row['response_count'],
+            'duration' => $row['duration'],
+        ];
+    }, $rows);
+}
+
+/**
+ * survey_spec から所要時間を取得する
+ */
+function parse_survey_duration(array $surveySpec): string
+{
+    if (isset($surveySpec['estimated_minutes']) && $surveySpec['estimated_minutes'] !== '') {
+        return (string)$surveySpec['estimated_minutes'] . '分';
+    }
+
+    if (isset($surveySpec['duration']) && $surveySpec['duration'] !== '') {
+        return (string)$surveySpec['duration'];
+    }
+
+    if (isset($surveySpec['questions']) && is_array($surveySpec['questions'])) {
+        $questionCount = count($surveySpec['questions']);
+        return $questionCount > 0 ? (string)$questionCount . '分' : '';
+    }
+
+    return '';
+}
+
+/**
  * 公開キーまたは結果キーからアンケート情報を取得する
  */
 function get_survey_by_key(string $key, string $type): ?array
@@ -349,6 +541,27 @@ function insert_comment(int $survey_id, int $user_id, string $content): bool
 }
 
 /**
+ * アンケートIDに紐づくコメント一覧を取得する
+ */
+function get_comments_by_survey_id(int $survey_id): array
+{
+    $sql = 'SELECT c.comment_id,
+                   c.content AS comment,
+                   u.account_name,
+                   c.created_at,
+                   COUNT(l.like_id) AS like_count
+            FROM comments c
+            JOIN users u ON c.user_id = u.user_id
+            LEFT JOIN likes l ON c.comment_id = l.comment_id
+            WHERE c.survey_id = :survey_id
+            GROUP BY c.comment_id, c.content, u.account_name, c.created_at
+            ORDER BY c.created_at DESC';
+
+    $stmt = executeQuery($sql, [':survey_id' => $survey_id]);
+    return $stmt->fetchAll();
+}
+
+/**
  * いいねの追加・解除を切り替え、現在の件数を返す
  */
 function toggle_like(int $user_id, int $comment_id, int $like_type): array
@@ -377,13 +590,12 @@ function toggle_like(int $user_id, int $comment_id, int $like_type): array
 }
 
 // ========================================
-// 7. コメント・いいね関連処理
+// 8. forbidden_words関連処理
 // ========================================
 
 /**
  * データベースから禁止文字列（NGワード）の一覧を取得する
  */
-
 function get_forbidden_words(): array
 {
     $sql = 'SELECT word FROM forbidden_words';

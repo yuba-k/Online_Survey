@@ -55,3 +55,36 @@ VALUES ('test_user2_php', 'hashed_password_456', NOW(), NOW());
 INSERT INTO responses (survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at)
 VALUES (2, 2, '{"q1":"32GB","q2":["ゲーム","仕事"]}', 30, 2, NOW());
 
+-- いいねが「0件」のコメント（LEFT JOINのテスト用）
+INSERT INTO comments (survey_id, user_id, content, created_at)
+VALUES (2, 2, 'このアンケート、選択肢が足りない気がします。', NOW());
+
+-- 複数のユーザーから「いいね」されているコメント（COUNT集計のテスト用）
+INSERT INTO comments (survey_id, user_id, content, created_at)
+VALUES (2, 1, '結果が楽しみですね。', NOW());
+
+-- 上記のコメント（ID:3と仮定）に対して、ユーザー1と2の両方がいいね
+INSERT INTO likes (user_id, comment_id, like_type, created_at) VALUES (1, 3, 1, NOW());
+INSERT INTO likes (user_id, comment_id, like_type, created_at) VALUES (2, 3, 1, NOW());
+
+-- 自由記述のみのアンケート
+INSERT INTO surveys (creator_id, question_key, result_key, title, is_notified, survey_spec, start_at, end_at, created_at, updated_at)
+VALUES (1, 'text-q-key', 'text-r-key', '自由な意見箱', FALSE,
+'{"questions":[{"type":"text","title":"改善してほしい点は？"}]}',
+'2026-01-01', '2026-12-31', NOW(), NOW());
+
+-- 自由記述への回答
+INSERT INTO responses (survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at)
+VALUES (3, 1, '{"q1":"スマホで見にくいです"}', 20, 1, NOW());
+
+-- Survey ID 2 (PCメモリ調査) への追加回答（統計的に意味のある数を追加）
+INSERT INTO responses (survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at)
+VALUES (2, NULL, '{"q1":"32GB","q2":["仕事"]}', 10, 1, NOW()); -- 10代男性
+INSERT INTO responses (survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at)
+VALUES (2, NULL, '{"q1":"8GB","q2":["仕事"]}', 50, 2, NOW());  -- 50代女性
+INSERT INTO responses (survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at)
+VALUES (2, NULL, '{"q1":"16GB","q2":["ゲーム"]}', 20, 2, NOW()); -- 20代女性
+
+-- 実際には保存処理で弾かれるべきだが、DBに直接入れて表示テストを行う
+INSERT INTO comments (survey_id, user_id, content, created_at)
+VALUES (2, 2, 'このアンケートは不適切語Aが含まれています', NOW());

@@ -23,5 +23,9 @@ if ($_SERVER["REQUEST_METHOD"]=="POST"){
 <?php if($error): ?>
 <p style="color:red"><?= htmlspecialchars($error) ?></p>
 <?php endif; ?>
+<!--question.phpの呼び出し方
+必ずquestion_idを与えてください
+-->
+<a href="question.php?question_id=test01">アンケート</a>
 </body>
 </html>

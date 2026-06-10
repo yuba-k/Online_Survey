@@ -1,6 +1,6 @@
 <?php
-session_start();
-
+require_once __DIR__ . '/auth.php';
+start_sess();
 // DB接続
 $conn = pg_connect("host=localhost dbname=test user=postgres password=pass");
 
@@ -134,8 +134,11 @@ new Chart(ctx, {
 <!-- ⑥ CSV / PDF ダウンロード -->
 <!-- ================================== -->
 
-<a href="download.php?id=<?= $survey_id ?>" target="_blank">
-    CSV/PDFダウンロード
+<a href="download.php?survey_id=<?= $survey_id ?>&format=csv" target="_blank">
+    CSV形式でダウンロード
+</a>
+<a href="download.php?survey_id=<?= $survey_id ?>&format=pdf" target="_blank">
+    PDF形式でダウンロード
 </a>
 
 ---
@@ -206,11 +209,11 @@ function escapeHTML(str) {
               .replace(/'/g, "&#039;");
 }
 
-function renderComments(comments) { [cite: 56]
+function renderComments(comments) {
 
-    let html = ""; [cite: 56]
+    let html = "";
 
-    comments.forEach(c => { [cite: 57]
+    comments.forEach(c => {
         // 投稿直後のバグ・セキュリティ漏れを防ぐためにエスケープ処理を適用
         const safeName = escapeHTML(c.account_name || 'ゲスト利用者');
         const safeComment = escapeHTML(c.comment).replace(/\n/g, '<br>');
@@ -226,9 +229,10 @@ function renderComments(comments) { [cite: 56]
             </button>
         </div>
         `;
-    }); [cite: 57]
+    });
 
-    document.getElementById("comment-list").innerHTML = html; [cite: 58]
+    document.getElementById("comment-list").innerHTML = html;
+}
 
 </script>
 
