@@ -110,7 +110,8 @@ if(is_null($r)){
                 ENT_QUOTES,
                 'UTF-8'
             );
-            echo "<input type='text' name='q{$i}' value='{$value}' required>";
+            //echo "<input type='text' name='q{$i}' value='{$value}' required>";
+            echo "<textarea name='q{$i}' maxlength='500' required>{$value}</textarea>";
         }
         echo "</div>"; 
     }
