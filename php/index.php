@@ -14,6 +14,8 @@ require_once 'db.php';
 // セキュリティモジュールを読み込み
 require_once 'security.php';
 
+start_sess(); // セッション開始（auth.phpの関数を使用）
+
 // 安全にHTMLエスケープを行うための共通関数
 if (!function_exists('h')) {
     function h($string) {
