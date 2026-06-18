@@ -46,26 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// 並べ替えパラメータ検知（URLから受け取る元のパラメータ）
+// 並べ替えパラメータ検知
 $sort_type = isset($_GET['sort']) ? $_GET['sort'] : 'start';
 
-// 【新関数へのマッピング】 index.phpのパラメータを get_homepage_survey_list の $sortOrder 用に変換
-$sort_order = '新着'; // 初期値（開始日時順）
+// パラメータを新関数の $sortOrder 用にマッピング
+$sort_order = '新着'; 
 if ($sort_type === 'deadline') {
-    $sort_order = '開始期限'; // 回答期限が近い順
+    $sort_order = '開始期限'; 
 } elseif ($sort_type === 'responses') {
-    $sort_order = '回答数'; // 回答数が多い順
+    $sort_order = '回答数'; 
 }
-
 
 // =========================================================================
 // JavaScriptからの延長リクエストを処理するAPIロジック
 // =========================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['api']) && $_GET['api'] === 'extend') {
-    // 応答をJSON形式にする
     header('Content-Type: application/json; charset=utf-8');
-    
-    // 生のPOSTデータ（JSON）を取得してデコード
     $raw_input = file_get_contents('php://input');
     $input_data = json_decode($raw_input, true);
     
@@ -78,9 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['api']) && $_GET['api']
     
     try {
         $pdo = isset($GLOBALS['db']) ? $GLOBALS['db'] : (function_exists('db_connect') ? db_connect() : null);
-        
         if ($pdo) {
-            // データベースの時間を10分進めるSQL（現在時刻と比較し、切れていれば今から10分後、期限内なら+10分）
             $sql = "UPDATE surveys 
                     SET end_at = DATE_ADD(IF(end_at > NOW(), end_at, NOW()), INTERVAL 10 MINUTE) 
                     WHERE survey_id = :survey_id AND creator_id = :creator_id";
@@ -92,13 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['api']) && $_GET['api']
             ]);
             
             if ($success && $stmt->rowCount() > 0) {
-                // 更新後の最新の終了時刻を取得してJavaScript側に返却する
                 $time_sql = "SELECT end_at FROM surveys WHERE survey_id = :survey_id";
                 $time_stmt = $pdo->prepare($time_sql);
                 $time_stmt->execute([':survey_id' => $target_survey_id]);
                 $updated_survey = $time_stmt->fetch(PDO::FETCH_ASSOC);
                 
-                // クライアント側で表示しやすいようにフォーマット
                 $new_time_formatted = date('Y.m.d H:i', strtotime($updated_survey['end_at']));
                 
                 echo json_encode([
@@ -107,19 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['api']) && $_GET['api']
                     'message' => '回答期限を10分間延長しました。'
                 ]);
                 exit;
-            } else {
-                echo json_encode(['success' => false, 'message' => 'データの更新に対象が見つかりません。']);
-                exit;
             }
         }
-        echo json_encode(['success' => false, 'message' => 'データベース接続エラー。']);
+        echo json_encode(['success' => false, 'message' => 'エラーが発生しました。']);
         exit;
     } catch (Exception $e) {
-        echo json_encode(['success' => false, 'message' => 'システムエラー: ' . $e->getMessage()]);
+        echo json_encode(['success' => false, 'message' => $e->getMessage()]);
         exit;
     }
 }
-
 
 // ==========================================
 // 100件ごとのページ分割制御ロジック
@@ -137,20 +125,14 @@ $active_surveys = [];
 $result_surveys = [];
 
 try {
-    // 【新関数への置き換え処理】
     if ($is_logged_in) {
-        // ① 作成したアンケート（ユーザーIDが必要）
         $created_surveys  = get_homepage_survey_list('作成したアンケート', $sort_order, $current_user_id);
-        // ② 回答したアンケート（ユーザーIDが必要）
         $answered_surveys = get_homepage_survey_list('回答したアンケート', $sort_order, $current_user_id);
     }
     
-    // ③ アンケート (回答受付中、全ユーザー共通のためユーザーIDは null)
     $all_active_surveys = get_homepage_survey_list('アンケート', $sort_order, null);
-    // ④ 調査結果 (期限終了分、全ユーザー共通のためユーザーIDは null)
     $all_result_surveys = get_homepage_survey_list('調査結果', $sort_order, null);
 
-    // ページ分割用のarray_slice処理は既存のロジックをそのまま維持
     $total_active = count($all_active_surveys);
     $total_pages_active = ceil($total_active / $limit);
     $active_surveys = array_slice($all_active_surveys, $offset_active, $limit);
@@ -160,7 +142,7 @@ try {
     $result_surveys = array_slice($all_result_surveys, $offset_result, $limit);
 
 } catch (Exception $e) {
-    error_log("index.php データ抽出エラー: " . $e->getMessage());
+    error_log("データ抽出エラー: " . $e->getMessage());
 }
 ?>
 <!DOCTYPE html>
@@ -170,71 +152,311 @@ try {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ホームページ - 村上製作所 アンケートシステム</title>
     <style>
-        /* 設計書のシンプルな見た目に準拠（無駄な角丸やグラデーションを排除） */
-        body { font-family: 'MS UI Gothic', 'Hiragino Kaku Gothic ProN', sans-serif; background-color: #ffffff; color: #000000; margin: 0; padding: 0; }
-        .container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
+        /* 設計書通りのネイビーを基調とした背景と白抜き文字を再現 */
+        body { 
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', sans-serif; 
+            background-color: #1e2d5a; /* 設計書のメインネイビー */
+            color: #ffffff; 
+            margin: 0; 
+            padding: 0; 
+        }
+        .container { 
+            width: 100%; 
+            max-width: 1024px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            box-sizing: border-box; 
+        }
         
-        /* 共通ボタン（四角いシンプルな配置） */
-        .btn { padding: 4px 10px; font-size: 12px; text-decoration: none; color: #000000; background-color: #efefef; border: 1px solid #767676; cursor: pointer; display: inline-block; text-align: center; }
-        .btn:hover { background-color: #e5e5e5; }
+        /* 設計書内の四角い角丸白背景パネル */
+        .white-panel {
+            background-color: #ffffff;
+            color: #333333;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* 設計書のシンプルな枠線付きボタン */
+        .btn { 
+            padding: 6px 16px; 
+            font-size: 13px; 
+            text-decoration: none; 
+            color: #1e2d5a; 
+            background-color: #ffffff; 
+            border: 2px solid #1e2d5a; 
+            border-radius: 6px;
+            cursor: pointer; 
+            display: inline-block; 
+            text-align: center; 
+            box-sizing: border-box; 
+            font-weight: bold;
+        }
+        .btn:hover { 
+            background-color: #eef2ff; 
+        }
         
-        /* アラートバー */
-        #liveAlertBar { background-color: #ffffcc; border: 1px solid #ffcc00; padding: 8px; margin-bottom: 10px; font-size: 12px; }
+        /* ライブアラートバー */
+        #liveAlertBar { 
+            background-color: #fffbeb; 
+            border: 2px solid #f59e0b; 
+            color: #b45309;
+            padding: 10px; 
+            margin-bottom: 15px; 
+            font-size: 13px; 
+            border-radius: 8px;
+        }
 
         /* GUIDE 利用方法 */
-        .guide-section { border: 1px solid #000000; padding: 15px; margin-bottom: 20px; background-color: #ffffff; }
-        .guide-section h2 { margin: 0 0 10px 0; font-size: 16px; font-weight: bold; border-bottom: 1px solid #000000; padding-bottom: 5px; }
-        .guide-steps { display: flex; gap: 10px; justify-content: space-between; overflow-x: auto; }
-        .guide-step { flex: 1; min-width: 160px; border: 1px solid #cccccc; padding: 10px; font-size: 11px; background-color: #fafafa; }
-        .guide-step-img { font-size: 20px; margin-bottom: 5px; text-align: center; }
-        .guide-step strong { display: block; margin-bottom: 5px; font-size: 12px; text-align: center; }
+        .guide-section { 
+            margin-bottom: 25px; 
+        }
+        .guide-section h2 { 
+            margin: 0 0 12px 0; 
+            font-size: 16px; 
+            font-weight: bold; 
+            color: #ffffff;
+        }
+        .guide-steps { 
+            display: flex; 
+            gap: 10px; 
+            justify-content: space-between; 
+        }
+        .guide-step { 
+            flex: 1; 
+            background-color: #ffffff; 
+            color: #333333;
+            border-radius: 12px;
+            padding: 12px; 
+            font-size: 11px; 
+            text-align: left; 
+        }
+        .guide-step-img { 
+            font-size: 24px; 
+            margin-bottom: 6px; 
+            text-align: center; 
+        }
+        .guide-step strong { 
+            display: block; 
+            margin-bottom: 6px; 
+            font-size: 12px; 
+            text-align: center; 
+            color: #1e2d5a;
+            border-bottom: 1px dashed #cccccc; 
+            padding-bottom: 4px; 
+        }
 
-        /* コントロールパネル */
-        .auth-control-panel { display: flex; justify-content: space-between; align-items: center; border: 1px solid #000000; padding: 10px; margin-bottom: 20px; background-color: #f5f5f5; }
-        .auth-buttons { display: flex; gap: 5px; }
+        /* ログイン状態・各種操作パネル */
+        .auth-control-panel { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px; 
+            margin-bottom: 25px; 
+            border-radius: 8px;
+        }
+        .auth-buttons { 
+            display: flex; 
+            gap: 6px; 
+        }
 
-        /* セクションヘッダーと並べ替えボタン */
-        .survey-section { margin-bottom: 25px; }
-        .section-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #000000; padding-bottom: 3px; margin-bottom: 10px; }
-        .section-header h3 { margin: 0; font-size: 14px; font-weight: bold; }
+        /* 各アンケートセクションの縦並びリスト構造 */
+        .survey-section { 
+            margin-bottom: 30px; 
+        }
+        .section-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 2px solid rgba(255, 255, 255, 0.3); 
+            padding-bottom: 6px; 
+            margin-bottom: 12px; 
+        }
+        .section-header h3 { 
+            margin: 0; 
+            font-size: 15px; 
+            font-weight: bold; 
+            color: #ffffff;
+        }
         
-        /* 横スクロールコンテナ */
-        .scroll-container { display: flex; overflow-x: auto; gap: 15px; padding-bottom: 10px; }
+        /* リスト配置（設計書に合わせたフラットな1行ずつの縦並び） */
+        .survey-list { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+        }
+        .survey-row { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            background-color: #ffffff; 
+            color: #333333;
+            border-radius: 8px;
+            padding: 10px 15px; 
+        }
         
-        /* カードUI（設計書に合わせたシンプルな枠線と配置） */
-        .card { flex: 0 0 240px; border: 1px solid #000000; padding: 10px; background-color: #ffffff; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box; }
-        .card-date { font-size: 11px; color: #000000; margin-bottom: 5px; }
-        .card-title { font-size: 13px; font-weight: bold; margin: 0 0 5px 0; white-space: normal; }
-        .card-creator { font-size: 11px; color: #555555; margin-bottom: 8px; }
-        .card-actions { display: flex; gap: 5px; margin-top: auto; }
-        .card-actions .btn { flex: 1; padding: 3px 5px; font-size: 11px; }
+        .survey-info { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 4px; 
+        }
+        .survey-date { 
+            font-size: 12px; 
+            color: #666666; 
+            font-weight: bold;
+        }
+        .survey-title { 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin: 0; 
+            color: #1e2d5a;
+        }
+        .survey-creator { 
+            font-size: 12px; 
+            color: #555555; 
+        }
+        
+        .survey-actions { 
+            display: flex; 
+            gap: 6px; 
+        }
 
         /* ページネーション */
-        .pagination { display: flex; justify-content: center; list-style: none; padding: 0; margin: 15px 0; gap: 5px; }
-        .page-link { display: block; padding: 3px 8px; border: 1px solid #767676; text-decoration: none; color: #000000; font-size: 12px; background-color: #ffffff; }
-        .page-item.active .page-link { background-color: #000000; color: #ffffff; border-color: #000000; }
+        .pagination { 
+            display: flex; 
+            justify-content: center; 
+            list-style: none; 
+            padding: 0; 
+            margin: 15px 0; 
+            gap: 6px; 
+        }
+        .page-link { 
+            display: block; 
+            padding: 4px 10px; 
+            border-radius: 4px;
+            text-decoration: none; 
+            color: #ffffff; 
+            font-size: 12px; 
+            background-color: rgba(255,255,255,0.1); 
+        }
+        .page-item.active .page-link { 
+            background-color: #ffffff; 
+            color: #1e2d5a; 
+            font-weight: bold;
+        }
 
-        /* 並べ替えポップアップ（ページ4準拠） */
-        .sort-container { position: relative; }
-        .sort-popup { position: absolute; top: 100%; right: 0; background-color: #ffffff; border: 1px solid #000000; z-index: 100; display: none; padding: 0; margin-top: 2px; }
-        .sort-popup.show-popup { display: block; }
-        .sort-option { display: block; width: 140px; padding: 6px 10px; font-size: 12px; color: #000000; text-align: left; background: none; border: none; cursor: pointer; border-bottom: 1px solid #eeeeee; }
-        .sort-option:hover { background-color: #eeeeee; }
-        .sort-option:last-child { border-bottom: none; }
+        /* 並べ替えポップアップ */
+        .sort-container { 
+            position: relative; 
+        }
+        .sort-popup { 
+            position: absolute; 
+            top: 100%; 
+            right: 0; 
+            background-color: #ffffff; 
+            color: #333333;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 100; 
+            display: none; 
+            padding: 4px 0; 
+            margin-top: 4px; 
+        }
+        .sort-popup.show-popup { 
+            display: block; 
+        }
+        .sort-option { 
+            display: block; 
+            width: 150px; 
+            padding: 8px 12px; 
+            font-size: 12px; 
+            color: #333333; 
+            text-align: left; 
+            background: none; 
+            border: none; 
+            cursor: pointer; 
+        }
+        .sort-option:hover { 
+            background-color: #f3f4f6; 
+        }
 
         /* 退会モーダル */
-        .withdraw-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); z-index: 200; display: <?php echo (isset($_GET['view']) && $_GET['view'] === 'withdraw') ? 'flex' : 'none'; ?>; align-items: center; justify-content: center; }
-        .withdraw-popup { background-color: #ffffff; padding: 20px; border: 2px solid #000000; width: 300px; text-align: center; }
-        .withdraw-message { font-size: 14px; font-weight: bold; margin-bottom: 15px; }
-        .withdraw-buttons { display: flex; gap: 10px; justify-content: center; }
+        .withdraw-overlay { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            background-color: rgba(0,0,0,0.5); 
+            z-index: 200; 
+            display: <?php echo (isset($_GET['view']) && $_GET['view'] === 'withdraw') ? 'flex' : 'none'; ?>; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .withdraw-popup { 
+            background-color: #ffffff; 
+            color: #333333;
+            padding: 20px; 
+            border-radius: 12px; 
+            width: 280px; 
+            text-align: center; 
+        }
+        .withdraw-message { 
+            font-size: 14px; 
+            font-weight: bold; 
+            margin-bottom: 15px; 
+        }
+        .withdraw-buttons { 
+            display: flex; 
+            gap: 8px; 
+            justify-content: center; 
+        }
 
-        /* TOPに戻るボタン */
-        .page-top-pink-btn { position: fixed; bottom: 20px; right: 20px; background-color: #ff4a8d; color: #ffffff; border: none; width: 45px; height: 45px; border-radius: 50%; font-size: 11px; font-weight: bold; cursor: pointer; z-index: 150; text-align: center; line-height: 1.2; padding-top: 4px; box-sizing: border-box; }
+        /* 設計書（PAGE 3）記載通りのピンクの四角いページトップボタン */
+        .page-top-pink-btn { 
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            background-color: #ff4a8d; /* 設計書準拠のピンク */
+            color: #ffffff; 
+            border: none; 
+            width: 45px; 
+            height: 45px; 
+            border-radius: 8px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            z-index: 150; 
+            text-align: center; 
+            line-height: 1.2; 
+            box-sizing: border-box; 
+            padding-top: 6px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
         
-        /* MEMBER メンバーセクション（設計書ページ4の下部記述に完全に一致） */
-        .member-section { border: 1px solid #000000; padding: 12px; margin-top: 30px; margin-bottom: 20px; background-color: #ffffff; }
-        .member-leader { font-weight: bold; font-size: 13px; margin-bottom: 8px; border-bottom: 1px solid #cccccc; padding-bottom: 3px; }
-        .member-list { font-size: 12px; line-height: 1.8; }
+        /* MEMBER メンバー（設計書のテキスト配置を完全再現） */
+        .member-section { 
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px; 
+            margin-top: 35px; 
+            margin-bottom: 20px; 
+        }
+        .member-leader { 
+            font-weight: bold; 
+            font-size: 14px; 
+            margin-bottom: 8px; 
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2); 
+            padding-bottom: 4px; 
+        }
+        .member-list { 
+            font-size: 12px; 
+            line-height: 1.8; 
+            letter-spacing: 0.5px;
+        }
     </style>
 </head>
 <body>
@@ -246,7 +468,7 @@ try {
     <div class="container">
         
         <div id="liveAlertBar" style="display: none;">
-            ✓ <span id="liveAlertText">ここにメッセージが入ります</span>
+            ✓ <span id="liveAlertText">メッセージ</span>
         </div>
         
         <section class="guide-section">
@@ -255,37 +477,27 @@ try {
                 <div class="guide-step">
                     <div class="guide-step-img">📋</div>
                     <strong>1. 調査要件の策定</strong>
-                    <div>
-                        アンケートの起案者は、事前に本システムへログインを完了した上で、調査目的の定義、設問数および選択肢の内部フォーマットの設計を厳密に行わなければなりません。収集すべきデータの属性を考慮し、対象ユーザーに不必要な負担を与えないよう、あらかじめ質問内容を精査・準備することが義務付けされています。
-                    </div>
+                    <div>アンケートの起案者は、事前に本システムへログインを完了した上で、調査目的の定義、設問数および選択肢の内部フォーマットの設計を厳密に行わなければなりません。収集すべきデータの属性を考慮し、対象ユーザーに不必要な負担を与えないよう、あらかじめ質問内容を精査・準備することが義務付けされています。</div>
                 </div>
                 <div class="guide-step">
                     <div class="guide-step-img">📢</div>
                     <strong>2. 電磁的公示の実行</strong>
-                    <div>
-                        準備された調査要件に基づき、「アンケートフォーム作成」機能を使用してシステムへの登録処理を執り行います。タイトルや回答に要する想定所要時間を電算システムに入力し、確定操作を完了させた時点で、当システムを閲覧するすべての構成員に対して電磁的な公示および告知が自動的に執行されます。
-                    </div>
+                    <div>準備された調査要件に基づき、「アンケートフォーム作成」機能を使用してシステムへの登録処理を執り行います。タイトルや回答に要する想定所要時間を電算システムに入力し、確定操作を完了させた時点で、当システムを閲覧するすべての構成員に対して電磁的な公示および告知が自動的に執行されます。</div>
                 </div>
                 <div class="guide-step">
                     <div class="guide-step-img">👥</div>
                     <strong>3. 回答権限の監視</strong>
-                    <div>
-                        公示されたアンケート案件は、システムによって設定された有効期限（end_at）に至るまで自動的にステータスが監視され、データ受付可能状態が維持されます。対象となる構成員は、それぞれの権限に基づいて該当レコードへアクセスし、付与された有効期限の枠内においてのみ電子的送信を行う権利を有します。
-                    </div>
+                    <div>公示されたアンケート案件は、システムによって設定された有効期限（end_at）に至るまで自動的にステータスが監視され、データ受付可能状態が維持されます。対象となる構成員は、それぞれの権限に基づいて該当レコードへアクセスし、付与された有効期限の枠内においてのみ電子的送信を行う権利を有します。</div>
                 </div>
                 <div class="guide-step">
                     <div class="guide-step-img">💻</div>
                     <strong>4. 応答データの送信</strong>
-                    <div>
-                        各案件カードに配置された「回答する」リンクを押下すると、専用の応答データ入力フォームが展開されます。利用者は、展開されたフォームの所定記述欄に対し、客観的事実および自身の真実に基づいた適切なデータを遅滞なく入力した上で、送信シグナルをホストサーバーへ向けて実行してください。
-                    </div>
+                    <div>各案件カードに配置された「回答する」リンクを押下すると、専用の応答データ入力フォームが展開されます。利用者は、展開されたフォームの所定記述欄に対し、客観的事実および自身の真実に基づいた適切なデータを遅滞なく入力した上で、送信シグナルをホストサーバーへ向けて実行してください。</div>
                 </div>
                 <div class="guide-step">
                     <div class="guide-step-img">📊</div>
                     <strong>5. 統計情報の電算処理</strong>
-                    <div>
-                        データベースへ正常に格納され蓄積された応答レコードおよびデータログは、システム内部の集計モジュールによってリアルタイムに電算処理されます。処理された統計データは、「結果を見る」ボタンを経由することで、グラフおよび視覚的統計情報としていつでも安全に閲覧・検証を行うことが可能です。
-                    </div>
+                    <div>データベースへ正常に格納され蓄積された応答レコードおよびデータログは、システム内部の集計モジュールによってリアルタイムに電算処理されます。処理された統計データは、「結果を見る」ボタンを経由することで、グラフおよび視覚的統計情報としていつでも安全に閲覧・検証を行うことが可能です。</div>
                 </div>
             </div>
         </section>
@@ -295,7 +507,7 @@ try {
                 <?php if ($is_logged_in): ?>
                     <span>ログイン中: <strong><?php echo h($_SESSION['account_name'] ?? '会員ユーザー'); ?></strong> 様</span>
                 <?php else: ?>
-                    <span style="font-size: 12px; color: #555555;">ゲストユーザー様 (ログインするとアンケート作成機能や回答履歴が解放されます)</span>
+                    <span style="font-size: 12px; color: #cccccc;">ゲストユーザー様</span>
                 <?php endif; ?>
             </div>
             <div class="auth-buttons">
@@ -316,7 +528,7 @@ try {
                 <div class="section-header">
                     <h3>MY SURVEY 作成したアンケート</h3>
                     <div class="sort-container">
-                        <button class="btn sort-trigger-btn">並べ替え ▾</button>
+                        <button class="btn sort-trigger-btn" style="background-color: transparent; color: #fff; border-color: #fff;">並べ替え ▾</button>
                         <div class="sort-popup">
                             <button class="sort-option" data-sort-type="start">新着順</button>
                             <button class="sort-option" data-sort-type="deadline">回答期限が近い順</button>
@@ -324,27 +536,25 @@ try {
                         </div>
                     </div>
                 </div>
-                <div class="scroll-container">
+                <div class="survey-list">
                     <?php if (empty($created_surveys)): ?>
-                        <p style="font-size:12px; color:#555555;">作成したアンケートはありません。</p>
+                        <div class="survey-row"><span style="font-size:12px;">作成したアンケートはありません。</span></div>
                     <?php else: ?>
                         <?php foreach ($created_surveys as $survey): ?>
-                            <div class="card" id="survey-card-<?php echo h($survey['survey_id']); ?>">
-                                <div>
-                                    <div class="card-date">
-                                        <span class="live-date-text" id="date-box-<?php echo h($survey['survey_id']); ?>" style="font-weight: bold;">
+                            <div class="survey-row" id="survey-card-<?php echo h($survey['survey_id']); ?>">
+                                <div class="survey-info">
+                                    <div class="survey-date">
+                                        <span id="date-box-<?php echo h($survey['survey_id']); ?>">
                                             <?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?>
                                         </span>
-                                        <span>(回答: <?php echo (int)($survey['response_count'] ?? 0); ?>件)</span>
+                                        (回答: <?php echo (int)($survey['response_count'] ?? 0); ?>件)
                                     </div>
-                                    <h4 class="card-title">「<?php echo h($survey['title']); ?>」</h4>
+                                    <h4 class="survey-title">「<?php echo h($survey['title']); ?>〜」</h4>
                                 </div>
-                                <div class="card-actions">
+                                <div class="survey-actions">
                                     <button type="button" class="btn js-extend-btn" 
                                             data-survey-id="<?php echo h($survey['survey_id']); ?>"
-                                            data-survey-title="<?php echo h($survey['title']); ?>">
-                                        延長
-                                    </button>
+                                            data-survey-title="<?php echo h($survey['title']); ?>">延長</button>
                                     <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="btn">結果</a>
                                     <a href="survey_form.php?id=<?php echo h($survey['survey_id']); ?>" class="btn">編集</a>
                                 </div>
@@ -358,25 +568,25 @@ try {
                 <div class="section-header">
                     <h3>MY SURVEY 回答したアンケート</h3>
                     <div class="sort-container">
-                        <button class="btn sort-trigger-btn">並べ替え ▾</button>
+                        <button class="btn sort-trigger-btn" style="background-color: transparent; color: #fff; border-color: #fff;">並べ替え ▾</button>
                         <div class="sort-popup">
                             <button class="sort-option" data-sort-type="start">新着順</button>
                             <button class="sort-option" data-sort-type="deadline">回答期限が近い順</button>
                         </div>
                     </div>
                 </div>
-                <div class="scroll-container">
+                <div class="survey-list">
                     <?php if (empty($answered_surveys)): ?>
-                        <p style="font-size:12px; color:#555555;">過去に回答したアンケートはありません。</p>
+                        <div class="survey-row"><span style="font-size:12px;">過去に回答したアンケートはありません。</span></div>
                     <?php else: ?>
                         <?php foreach ($answered_surveys as $survey): ?>
-                            <div class="card">
-                                <div>
-                                    <div class="card-date"><?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?></div>
-                                    <h4 class="card-title">「<?php echo h($survey['title']); ?>」</h4>
-                                    <div class="card-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
+                            <div class="survey-row">
+                                <div class="survey-info">
+                                    <div class="survey-date"><?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?></div>
+                                    <h4 class="survey-title">「<?php echo h($survey['title']); ?>〜」</h4>
+                                    <div class="survey-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
                                 </div>
-                                <div class="card-actions">
+                                <div class="survey-actions">
                                     <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="btn">結果</a>
                                     <a href="question.php?id=<?php echo h($survey['survey_id']); ?>&mode=edit" class="btn">編集</a>
                                 </div>
@@ -391,7 +601,7 @@ try {
             <div class="section-header">
                 <h3>SURVEY アンケート (回答受付中)</h3>
                 <div class="sort-container">
-                    <button class="btn sort-trigger-btn">並べ替え ▾</button>
+                    <button class="btn sort-trigger-btn" style="background-color: transparent; color: #fff; border-color: #fff;">並べ替え ▾</button>
                     <div class="sort-popup">
                         <button class="sort-option" data-sort-type="start">新着順</button>
                         <button class="sort-option" data-sort-type="deadline">回答期限が近い順</button>
@@ -399,29 +609,29 @@ try {
                     </div>
                 </div>
             </div>
-            <div class="scroll-container">
+            <div class="survey-list">
                 <?php if (empty($active_surveys)): ?>
-                    <p style="font-size:12px; color:#555555;">現在、受付中のアンケートはありません。</p>
+                    <div class="survey-row"><span style="font-size:12px;">現在、受付中のアンケートはありません。</span></div>
                 <?php else: ?>
                     <?php foreach ($active_surveys as $survey): ?>
                         <?php 
                             $spec = !empty($survey['survey_spec']) ? json_decode($survey['survey_spec'], true) : [];
                             $required_time = isset($spec['Estimated_time']) ? (int)$spec['Estimated_time'] : 0; 
                         ?>
-                        <div class="card">
-                            <div>
-                                <div class="card-date">
+                        <div class="survey-row">
+                            <div class="survey-info">
+                                <div class="survey-date">
                                     <span id="public-date-box-<?php echo h($survey['survey_id']); ?>">
                                         <?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?>
-                                    </span> 
+                                    </span>
                                     <?php if ($required_time > 0): ?>
-                                        <span style="margin-left:5px;">(所要時間: <?php echo $required_time; ?>分) 10m</span>
+                                        <span> 安時間:<?php echo $required_time; ?>分) 10m</span>
                                     <?php endif; ?>
                                 </div>
-                                <h4 class="card-title">「<?php echo h($survey['title']); ?>」</h4>
-                                <div class="card-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
+                                <h4 class="survey-title">「<?php echo h($survey['title']); ?>〜」</h4>
+                                <div class="survey-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
                             </div>
-                            <div class="card-actions">
+                            <div class="survey-actions">
                                 <a href="question.php?id=<?php echo h($survey['survey_id']); ?>" class="btn">回答(○月○日~)</a>
                             </div>
                         </div>
@@ -444,7 +654,7 @@ try {
             <div class="section-header">
                 <h3>Results 調査結果</h3>
                 <div class="sort-container">
-                    <button class="btn sort-trigger-btn">並べ替え ▾</button>
+                    <button class="btn sort-trigger-btn" style="background-color: transparent; color: #fff; border-color: #fff;">並べ替え ▾</button>
                     <div class="sort-popup">
                         <button class="sort-option" data-sort-type="start">新着順</button>
                         <button class="sort-option" data-sort-type="deadline">回答期限が近い順</button>
@@ -452,18 +662,18 @@ try {
                     </div>
                 </div>
             </div>
-            <div class="scroll-container">
+            <div class="survey-list">
                 <?php if (empty($result_surveys)): ?>
-                    <p style="font-size:12px; color:#555555;">過去ログデータはありません。</p>
+                    <div class="survey-row"><span style="font-size:12px;">過去ログデータはありません。</span></div>
                 <?php else: ?>
                     <?php foreach ($result_surveys as $survey): ?>
-                        <div class="card">
-                            <div>
-                                <div class="card-date"><?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?></div>
-                                <h4 class="card-title">「<?php echo h($survey['title']); ?>」</h4>
-                                <div class="card-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
+                        <div class="survey-row">
+                            <div class="survey-info">
+                                <div class="survey-date"><?php echo h(date('Y.m.d', strtotime($survey['end_at']))); ?></div>
+                                <h4 class="survey-title">「<?php echo h($survey['title']); ?>〜」</h4>
+                                <div class="survey-creator">作成: <?php echo h($survey['creator_name'] ?? '不明'); ?></div>
                             </div>
-                            <div class="card-actions">
+                            <div class="survey-actions">
                                 <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="btn">結果(○月○日~)</a>
                             </div>
                         </div>
@@ -485,7 +695,7 @@ try {
         <section class="member-section">
             <div class="member-leader">MEMBER メンバー 社長 村上悠</div>
             <div class="member-list">
-                吉守祥 中城大志 野元悠惺 湯場崎啓心 前田凱南 折本敢太 酒匂莉乃 丸山夕渚 用貝有基
+                吉守祥 中城大志 野元悠惺 香 湯場崎啓心 前田凱南 折本敢太 酒匂莉乃 丸山夕渚 用貝有基
             </div>
         </section>
     </div>
@@ -496,7 +706,7 @@ try {
             <form action="index.php" method="POST" class="withdraw-buttons">
                 <input type="hidden" name="action" value="delete_account">
                 <a href="index.php" class="btn">戻る</a>
-                <button type="submit" class="btn" style="background-color: #ffcccc;">退会</button>
+                <button type="submit" class="btn" style="background-color: #efefef;">退会</button>
             </form>
         </div>
     </div>
@@ -541,12 +751,11 @@ try {
                             alertText.textContent = `「${surveyTitle}」の回答期限を10分間延長しました。`;
                             alertBar.style.display = 'block';
                         } else {
-                            alert('延長処理に失敗しました: ' + data.message);
+                            alert('延長処理に失敗しました。');
                         }
                     })
                     .catch(err => {
-                        console.error('通信エラー:', err);
-                        alert('システムエラーが発生しました。');
+                        console.error(err);
                     });
                 });
             });
