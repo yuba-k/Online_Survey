@@ -34,36 +34,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
 
     if ($username !== '' && $password !== '') {
-        // データベースからusernameをキーにユーザー情報を取得
-        $sql = "SELECT id, uuid, username, password FROM users WHERE username = :username LIMIT 1";
-        $stmt = executeQuery($sql, [':username' => $username]);
-        $user = $stmt->fetch();
+        // -----------------------------------------------------------------
+        // 【修正】共通関数 get_user_by_name() を利用してユーザー情報を取得
+        // -----------------------------------------------------------------
+        $user = get_user_by_name($username);
 
-        // ユーザーが存在し、パスワードハッシュが一致するか検証
+        // 該当するユーザーが存在し、パスワードが一致するか検証
         if ($user && password_verify($password, $user['password'])) {
-            // 仕様書③：セッションハイジャック対策として必ずセッションIDを再発行
+            // セッション固定攻撃対策：ログイン成功時にセッションIDを再生成
             session_regenerate_id(true);
 
-            // 仕様書③：ログインしたユーザー情報を格納
-            $_SESSION['user_id'] = (int)$user['id'];
-            $_SESSION['uuid'] = $user['uuid'];
+            // セッションにユーザー情報を格納
+            $_SESSION['user_id'] = $user['id']; 
             $_SESSION['username'] = $user['username'];
+            $_SESSION['last_acc'] = time(); // タイムアウト判定用のタイムスタンプ
 
-            // 仕様書③：セッションに redirect_url があればそこに移動し、セッション内から削除する
-            if (!empty($_SESSION['redirect_url'])) {
-                $target_url = $_SESSION['redirect_url'];
-                unset($_SESSION['redirect_url']);
-                header("Location: " . $target_url);
-            } else {
-                // なかった場合は標準のページに移動
-                header('Location: survey_form.php');
-            }
+            // 事前に遷移元のURLが記録されていればそこへ、なければ管理画面等へリダイレクト
+            $redirect_url = $_SESSION['return_to'] ?? 'survey_form.php';
+            unset($_SESSION['return_to']); // 使い終わったURLは削除
+
+            header("Location: " . $redirect_url);
             exit;
         } else {
-            $error_message = 'ユーザー名、またはパスワードが正しくありません。';
+            $error_message = 'ユーザー名またはパスワードが正しくありません。';
         }
     } else {
-        $error_message = 'すべての項目を入力してください。';
+        $error_message = 'ユーザー名とパスワードを入力してください。';
     }
 }
 ?>
@@ -85,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form action="signin.php" method="POST" class="space-y-4">
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="csrf_token" value=\"<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>\">
 
             <div>
                 <label class="block text-gray-700 font-medium mb-1">ユーザー名</label>
@@ -101,9 +97,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ログイン
             </button>
         </form>
-        <p class="mt-4 text-center text-sm text-gray-600">
-            <a href="signup.php" class="text-blue-500 hover:underline">新規会員登録はこちら</a>
-        </p>
+
+        <div class="mt-4 text-center">
+            <p class="text-sm text-gray-600">
+                アカウントをお持ちでないですか？ 
+                <a href="signup.php" class="text-blue-500 hover:underline">新規登録</a>
+            </p>
+        </div>
     </div>
 </body>
 </html>
