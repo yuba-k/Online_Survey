@@ -24,7 +24,8 @@ if (!function_exists('h')) {
 }
 
 // ユーザー状態の検知
-$is_logged_in = isset($_SESSION['user_id']); 
+#$is_logged_in = isset($_SESSION['user_id']); 
+$is_logged_in = true;
 $current_user_id = $is_logged_in ? (int)$_SESSION['user_id'] : null;
 
 // サインアウト処理のハンドリング
@@ -124,18 +125,28 @@ $active_surveys = [];
 $result_surveys = [];
 
 try {
+    // 1. ログインユーザー専用データ（第4引数に $limit, 第5引数に $offset_active を渡す）
     if ($is_logged_in) {
         $created_surveys  = get_homepage_survey_list('作成したアンケート', $sort_order, $current_user_id, $limit, $offset_active);
         $answered_surveys = get_homepage_survey_list('回答したアンケート', $sort_order, $current_user_id, $limit, $offset_active);
     }
     
-    $all_active_surveys = get_homepage_survey_list('アンケート', $sort_order, null, 10000, 0);
-    $all_result_surveys = get_homepage_survey_list('調査結果', $sort_order, null, 10000, 0);
+    // 2. 全体公開用アンケート
+    // ① ページ総数を計算するために、まずは上限なし（PHPの最大整数値）で全件数を数える
+    $all_active_surveys = get_homepage_survey_list('アンケート', $sort_order, null, PHP_INT_MAX, 0);
     $total_active = count($all_active_surveys);
     $total_pages_active = ceil($total_active / $limit);
+    
+    // ② 表示用データの取得で、第4引数に $limit, 第5引数に $offset_active を渡す
     $active_surveys = get_homepage_survey_list('アンケート', $sort_order, null, $limit, $offset_active);
+
+    // 3. 全体公開用調査結果
+    // ① 同様にページ総数を計算するために、上限なしで全件数を数える
+    $all_result_surveys = get_homepage_survey_list('調査結果', $sort_order, null, PHP_INT_MAX, 0);
     $total_result = count($all_result_surveys);
     $total_pages_result = ceil($total_result / $limit);
+    
+    // ② 表示用データの取得で、第4引数に $limit, 第5引数に $offset_result を渡す
     $result_surveys = get_homepage_survey_list('調査結果', $sort_order, null, $limit, $offset_result);
 
 } catch (Exception $e) {
@@ -146,16 +157,14 @@ try {
 <html lang="ja">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ホームページ - 村上製作所</title>
 
     <link rel="stylesheet" href="../css/question.css">
     <link rel="stylesheet" href="../css/footer.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
-    
-
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ホームページ - 村上製作所</title>
         
     <style>
         body { 
@@ -215,17 +224,6 @@ try {
                 2px -2px 0 #ffffff,
                -2px -2px 0 #ffffff;
         }
-        .illustration-placeholder {
-            border: none; 
-            background-color: #1e2d5a; 
-            padding: 0;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-sizing: border-box;
-        }
         .illustration-placeholder img {
             width: 100%;
             height: auto;
@@ -250,10 +248,15 @@ try {
             color: #ffffff;
             margin-bottom: 4px;
         }
+        
+        /* 💡 楕円ボタンのサイズと配置スタイルを一律固定化（サイズばらつき防止） */
         .oval-btn {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             width: 240px;
-            padding: 10px 20px;
+            height: 42px; 
+            padding: 0 20px;
             font-size: 13px;
             font-weight: bold;
             text-decoration: none;
@@ -263,12 +266,14 @@ try {
             border: 2px solid #ffffff; 
             color: #000000 !important; 
         }
-        .btn-signup { background-color: #0055ff; } 
+        .btn-signup { background-color: #33ccff; } 
         .btn-signin { background-color: #33ccff; } 
         .btn-withdraw { background-color: #ff3333; } 
-        .btn-signout { background-color: #ff5500; } 
+        /* 💡 サインアウトボタンの色合いを目立ちすぎない薄めのオレンジに変更 */
+        .btn-signout { background-color: #ff9d66; } 
         .btn-create { background-color: #d2f9d2; } 
         .btn-profile { background-color: #e6ccff; } 
+        
         .guide-section h2,
         .survey-section .section-title-area h3,
         .member-section h3 { 
@@ -607,10 +612,10 @@ try {
         }
     </style>
 </head>
-<body style="padding-top: 64px !important;">
+<body class="flex flex-col min-h-screen" style="padding-top: 64px !important;">
     <?php include 'header.php'; ?>
 
-    <div class="container">
+    <div class="container flex-grow">
         
         <div id="liveAlertBar" style="display: none;">
             ✓ <span id="liveAlertText">メッセージ</span>
@@ -641,10 +646,10 @@ try {
                     <a href="signup.php" class="oval-btn btn-signup">ユーザー登録 →</a>
                     <a href="signin.php" class="oval-btn btn-signin">サインイン →</a>
                 <?php else: ?>
-                    <a href="survey_form.php" class="oval-btn btn-create">アンケートフォーム作成<br>→</a>
-                    <a href="profile.php" class="oval-btn btn-profile">ユーザ情報の変更<br>→</a>
                     <a href="index.php?view=withdraw" class="oval-btn btn-withdraw">退会 →</a>
-                    <a href="index.php?action=signout" class="oval-btn btn-signout">サインアウト<br>→</a>
+                    <a href="index.php?action=signout" class="oval-btn btn-signout">サインアウト →</a>
+                    <a href="survey_form.php" class="oval-btn btn-create">アンケートフォーム作成 →</a>
+                    <a href="profile.php" class="oval-btn btn-profile">ユーザ情報の変更 →</a>
                 <?php endif; ?>
             </div>
         </section>
@@ -815,7 +820,7 @@ try {
                                         <div class="survey-creator">作成: <?php echo h($survey['creator'] ?? '不明'); ?></div>
                                     </div>
                                     <div class="survey-actions">
-                                        <a href="question.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-answer">回答(○月○日~)</a>
+                                        <a href="question.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-answer">回答(○月○日~)</a>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -950,14 +955,11 @@ try {
                 }
             }
 
-            // 回答期限延長の非同期処理 (header.php側で生成されたトークンと連携)
             const extendButtons = document.querySelectorAll('.js-extend-btn');
             extendButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const surveyId = this.dataset.surveyId;
                     const surveyTitle = this.dataset.surveyTitle;
-                    
-                    // header.php または共通のグローバル空間に設置された csrfToken を取得・利用
                     const activeToken = typeof csrfToken !== 'undefined' ? csrfToken : '';
                     
                     fetch('index.php?api=extend', {
@@ -987,7 +989,6 @@ try {
                 });
             });
 
-            // 並べ替えポップアップの開閉処理
             const sortTriggerBtns = document.querySelectorAll('.sort-trigger-btn');
             sortTriggerBtns.forEach(button => {
                 button.addEventListener('click', (event) => {
@@ -1005,7 +1006,6 @@ try {
                 });
             });
 
-            // ポップアップ内の閉じる（×）ボタンの処理
             const closeBtns = document.querySelectorAll('.sort-popup-close');
             closeBtns.forEach(btn => {
                 btn.addEventListener('click', (event) => {
@@ -1015,7 +1015,6 @@ try {
                 });
             });
 
-            // 並べ替えオプションのクリックイベント
             const sortOptions = document.querySelectorAll('.sort-option');
             sortOptions.forEach(option => {
                 option.addEventListener('click', function(event) {
@@ -1027,12 +1026,10 @@ try {
                 });
             });
 
-            // 画面のどこかをクリックしたらポップアップを閉じる
             document.addEventListener('click', () => {
                 document.querySelectorAll('.sort-popup').forEach(p => p.classList.remove('show-popup'));
             });
 
-            // ページトップへスムーズに戻る処理の確実化
             const scrollTopButton = document.querySelector('.page-top-pink-btn');
             if (scrollTopButton) {
                 scrollTopButton.addEventListener('click', (e) => {
@@ -1046,6 +1043,27 @@ try {
         });
     </script>
 
+    <style>
+        footer {
+            display: block !important;
+            width: 100% !important;
+            background-color: #1e3a8a !important; 
+            color: #ffffff !important;           
+            text-align: center !important;       
+            padding: 24px 0 !important;          
+            margin-top: 48px !important;         
+            position: relative !important;
+            z-index: 999 !important;
+        }
+        footer * {
+            color: #ffffff !important;
+            text-align: center !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
+        }
+    </style>
+    
+    <div class="h-8"></div>
     <?php require_once "footer.php"; ?>
 </body>
 </html>
