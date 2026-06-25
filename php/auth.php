@@ -62,7 +62,7 @@ function login_check(){
     if(!isset($_SESSION['user_id'])){
         //元のURLを保存してログインページにリダイレクトする
         $_SESSION['return_to'] = $_SERVER['REQUEST_URI']; 
-        header('Location: signin.php');
+        header('Location: ../php/signin.php');
         exit();
     }
 
@@ -73,7 +73,7 @@ function login_check(){
             //セッションを破棄してログインページにリダイレクトする
             del_sess();
             $_SESSION['return_to'] = $_SERVER['REQUEST_URI'];
-            header('Location: signin.php');
+            header('Location: ../php/signin.php');
             exit();
         }
     }
@@ -87,11 +87,11 @@ function generate_csrf(){
     if(session_status() == PHP_SESSION_NONE){
         start_sess();
     }
-
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
     //CSRFトークンを生成してセッションに保存する
-    if(empty($_SESSION['csrf_token'])){
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
+    // if(empty($_SESSION['csrf_token'])){
+    //     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    // }
     return $_SESSION['csrf_token'];
 }
 
@@ -112,7 +112,10 @@ function check_csrf($token){
         
         unset($_SESSION['csrf_token']);// トークンが不正な場合はセッションから削除して新しいトークンを生成する
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32)); // 新しいトークンを生成して保存する
-        die('不正なリクエストです。');
+        require_once __DIR__ . '/../php/error.php';
+
+        renderError('不正なリクエストです。もう一度お試しください。', 400, 'app', 'WARNING');
+        die();
     }
 
 }
