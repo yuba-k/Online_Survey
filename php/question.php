@@ -147,7 +147,7 @@ if(is_null($r)){
         echo "<input type='date' name='birthday' min='1900-01-01' max='{$max_date}' required><br>";
         echo "</div>";
     }
-    echo "<div id='submit'><button type='submit'>送信</button></div>";
+    echo "<div id='submit'><button method='confirm_db.php' type='submit'>送信</button></div>";
     echo "</form>";
     echo "<script src='../js/api_manager.js'></script>";
     echo "</main>";
