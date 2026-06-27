@@ -1,6 +1,6 @@
 <?php
-require_once 'auth.php';
 require_once 'db.php';
+require_once 'auth.php';
 require_once 'security.php';
 require_once 'error.php';
 
@@ -10,7 +10,11 @@ if (!function_exists('h')) {
     }
 }
 
-start_sess();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$csrf_token = $_SESSION['csrf_token'] ?? '';
 
 if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
     renderError('不正なリクエストです。もう一度お試しください。', 400, 'APP', 'WARNING');

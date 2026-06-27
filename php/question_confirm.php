@@ -17,7 +17,11 @@ if ($q_key === '') {
     exit;
 }
 
-start_sess();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$csrf_token = $_SESSION['csrf_token'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($_POST['csrf_token']) || !hash_equals($_SESSION['csrf_token'] ?? '', $_POST['csrf_token'])) {
@@ -29,8 +33,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-$csrf_token = generate_csrf();
-
 $r = get_survey_by_key($q_key, 'question_key');
 if (is_null($r)) {
     renderError('存在しないページです', 500, 'APP', 'WARNING', null, '存在しないページ');
@@ -40,8 +42,6 @@ if (is_null($r)) {
 $json = $r['survey_spec'];
 
 echo "<title>" . h($r['title']) . "</title>";
-echo "<body>";
-include "header.php";
 echo "<main>";
 echo "<h1>回答内容の確認</h1>";
 echo "<p>" . h($r['survey_spec']['title'] ?? '') . "</p>";

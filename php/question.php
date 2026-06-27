@@ -5,8 +5,19 @@ require_once 'security.php';
 require_once 'error.php';
 $q_key = $_GET['question_id'] ?? '';
 
-start_sess();
-$csrf_token = generate_csrf();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (empty($_SESSION['csrf_token'])) {
+    if (function_exists('generate_csrf')) {
+        $_SESSION['csrf_token'] = generate_csrf();
+    } else {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+}
+$csrf_token = $_SESSION['csrf_token'];
+
 $raw_autosave = $_SESSION['autosave']['answer']['data'] ?? [];
 
 $autosave = [];
@@ -147,7 +158,7 @@ if(is_null($r)){
         echo "<input type='date' name='birthday' min='1900-01-01' max='{$max_date}' required><br>";
         echo "</div>";
     }
-    echo "<div id='submit'><button type='submit'>確認画面へ</button></div>";
+    echo "<div id='submit'><button type='submit'>送信画面へ</button></div>";
     echo "</form>";
     echo "<script src='../js/api_manager.js'></script>";
     echo "</main>";
