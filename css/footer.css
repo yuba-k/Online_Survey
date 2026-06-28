@@ -15,3 +15,7 @@ footer a{
     color: aliceblue;
     font-size: small;
 }
+
+footer p{
+    font-size: medium;
+}
