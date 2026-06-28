@@ -71,7 +71,7 @@ try {
     exit("500 Internal Server Error: データベース登録中にエラーが発生しました。");
 }
 ?>
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
@@ -87,4 +87,4 @@ try {
         </a>
     </div>
 </body>
-</html>
+</html> -->

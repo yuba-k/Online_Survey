@@ -69,7 +69,7 @@ if($_SERVER["REQUEST_METHOD"] == "POST"){
             <div class="flex items-center">
                 <input type="checkbox" id="agreed_terms" name="agreed_terms" value="1" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" required>
                 <label for="agreed_terms" class="ml-2 block text-sm text-white">
-                    <a href="#" class="text-blue-500 hover:underline">利用規約</a>に同意する
+                    <a href="term.php" target="_blank" class="text-blue-400 hover:underline font-semibold">利用規約 <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i></a>に同意する
                 </label>
             </div>
 
