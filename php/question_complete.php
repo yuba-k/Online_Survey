@@ -46,8 +46,36 @@ if ($success) {
     unset($_SESSION['saved_answer']);
     unset($_SESSION['csrf_token']);
 
-    header('Location: result.php?question_id=' . rawurlencode($q_key));
+    echo "<title>送信完了 - " . h($survey['title']) . "</title>";
+    echo "<head><link rel='stylesheet' href='../css/question_confirm.css'><link rel='stylesheet' href='../css/footer.css'>";
+    echo "<link rel='stylesheet' href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'>";
+    echo "<script src='https://cdn.tailwindcss.com'></script></head>";
+    echo "<body>";
+    include "header.php";
+    echo "<main>";
+    echo "<h1>送信が完了しました</h1>";
+    echo "<p>アンケートへのご協力、ありがとうございました。</p>";
+    
+    echo "<div class='flex justify-center gap-4'>";
+    
+    echo "<a href='result.php?question_id=" . h($q_key) . "' 
+             class='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition'>
+             <i class='fa-solid fa-chart-pie mr-2'></i>集計結果を見る
+          </a>";
+    
+    echo "<a href='index.php' 
+             class='bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded transition'>
+             <i class='fa-solid fa-house mr-2'></i>ホームに戻る
+          </a>";
+
+    echo "</div>";
+    echo "</form>";
+    echo "<script src='../js/api_manager.js'></script>";
+    echo "</main>";
+    require_once "footer.php";
+    echo "</body>";
+    
     exit;
 }
 
-die('保存に失敗しました。');
+die('データの保存に失敗しました。');
