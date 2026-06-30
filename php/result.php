@@ -3,81 +3,82 @@ require_once __DIR__ . '/auth.php';
 start_sess();
 require_once __DIR__ . '/db.php';
 // アンケートID
-$survey_id = $_GET["id"] ?? 1;
-$question_id = $_GET["question_id"] ?? 'q1';
+$result_key = $_GET["key"] ?? '';
 $user_id = $_SESSION['user_id'] ?? 1;
+if ($result_key === '') {
+    die("エラー：無効なアクセスです。URLをご確認ください。");
+}
 //====================================
 // ① 集計データ取得（グラフ用）
 //====================================
-$responses = get_responses_by_survey_id((int)$survey_id);
-/*$sql = "SELECT a.answer_value, COUNT(a.*) as count, s.survey_spec
-        FROM answers a
-        JOIN surveys s ON a.survey_id = s.survey_id
-        WHERE a.survey_id = :survey_id AND a.question_id = :question_id
-        GROUP BY a.answer_value, s.survey_spec";
+//$responses = get_responses_by_survey_id((int)$survey_id);
 
-$stmt = executeQuery($sql, [
-    ':survey_id'   => $survey_id,
-    ':question_id' => $question_id
-]);
-*/
-$sql_spec = "SELECT survey_spec FROM surveys WHERE survey_id = :survey_id";
-$stmt_spec = executeQuery($sql_spec, [':survey_id' => $survey_id]);
-$survey_row = $stmt_spec->fetch();
-$survey_spec_str = $survey_row['survey_spec'] ?? '{}';
-$spec_data = json_decode($survey_spec_str, true);
+$survey = get_survey_by_key($result_key, 'result');
 
-$counts = [];
-foreach ($responses as $response) {
-    // db.php 側で既に配列化されている回答データを取り出す
-    $answers = $response['answer_data'] ?? [];
-    
-    // ユーザーがこの質問（$question_id）に回答している場合のみ処理
-    if (isset($answers[$question_id])) {
-        $ans = $answers[$question_id];
-        
-        // チェックボックスなどの複数回答（配列）の場合
-        if (is_array($ans)) {
-            foreach ($ans as $a) {
-                // 既に箱があれば+1、無ければ1をセット
-                $counts[$a] = isset($counts[$a]) ? $counts[$a] + 1 : 1;
-            }
-        } 
-        // ラジオボタンやテキストなどの単一回答の場合
-        else {
-            $counts[$ans] = isset($counts[$ans]) ? $counts[$ans] + 1 : 1;
-        }
-    }
-}
-$labels = [];
-$data = [];
-foreach ($counts as $answer_value => $count) {
-    $labels[] = $answer_value; // 選択肢の名前
-    $data[] = $count;          // 獲得した票数
+if ($survey === null) {
+    die("エラー：指定されたアンケートが見つかりません。");
 }
 
+// 取得したデータから survey_id を抽出
+$survey_id = (int)$survey['survey_id'];
 
-$chart_type = 'bar'; // 見つからなかったときの初期値
+// アンケートの仕様（質問の一覧など）を取得
+$spec_data = $survey['survey_spec'];
 
-if (isset($spec_data['questions'])) {
+// 判明した survey_id を使って回答データを全件取得
+$responses = get_responses_by_survey_id($survey_id);
+$all_chart_data = [];
+
+// 仕様書に定義されている質問（q1, q2...）をすべてループして集計
+if (isset($spec_data['questions']) && is_array($spec_data['questions'])) {
     foreach ($spec_data['questions'] as $q) {
-        // 今見ている質問ID（例: q1）の設定を探し出す
-        if ($q['id'] === $question_id) {
-            // 仕様書にある pie, histogram, bar などの形式を取得
-            $chart_type = $q['result_display'] ?? 'bar'; 
+        $q_id = $q['id'];                // 例: 'q1', 'q2'
+        $q_title = $q['title'] ?? $q_id; // 質問のタイトル
+
+        // この質問に対する選択肢ごとの票数を数える
+        $counts = [];
+        foreach ($responses as $response) {
+            $answers = $response['answer_data'] ?? [];
             
-            // Chart.jsで「histogram」は「bar(棒グラフ)」として描画するため変換
-            if ($chart_type === 'histogram') {
-                $chart_type = 'bar';
+            if (isset($answers[$q_id])) {
+                $ans = $answers[$q_id];
+                
+                // チェックボックスなどの複数回答（配列）の場合
+                if (is_array($ans)) {
+                    foreach ($ans as $a) {
+                        $counts[$a] = isset($counts[$a]) ? $counts[$a] + 1 : 1;
+                    }
+                } 
+                // ラジオボタンなどの単一回答の場合
+                else {
+                    $counts[$ans] = isset($counts[$ans]) ? $counts[$ans] + 1 : 1;
+                }
             }
-            break;
         }
+
+        // Chart.jsで扱えるようにラベルとデータ（票数）に分解
+        $labels = [];
+        $data = [];
+        foreach ($counts as $answer_value => $count) {
+            $labels[] = $answer_value; // 選択肢の名前
+            $data[] = $count;          // 獲得した票数
+        }
+
+        // グラフ種類の判定（仕様書の設定を反映）
+        $chart_type = $q['result_display'] ?? 'bar'; 
+        if ($chart_type === 'histogram') {
+            $chart_type = 'bar'; // Chart.js用変換
+        }
+
+        // 💡 質問ID（q1など）をキーにして、集計結果をまとめて保存
+        $all_chart_data[$q_id] = [
+            'title'      => $q_title,
+            'chart_type' => $chart_type,
+            'labels'     => $labels,
+            'data'       => $data
+        ];
     }
 }
-// JSON化（Chart.js用）
-$labels_json = json_encode($labels);
-$data_json = json_encode($data);
-
 //====================================
 // ② コメント一覧取得
 //====================================
@@ -100,39 +101,41 @@ $comment_list_data = get_comments_by_survey_id((int)$survey_id);
 <input type="hidden" id="current-survey-id" value="<?= htmlspecialchars((string)$survey_id) ?>">
 <span id="save-status" style="color: gray; font-size: 0.9em; float: right;"></span>
 <h1>アンケート結果</h1>
-<div style="margin-bottom: 20px;">
-    <strong>質問を切り替える：</strong>
-    <a href="result.php?id=<?= $survey_id ?>&question_id=q1">🔌 質問1</a> | 
-    <a href="result.php?id=<?= $survey_id ?>&question_id=q2">🎮 質問2</a> | 
-    <a href="result.php?id=<?= $survey_id ?>&question_id=q3">💬 質問3</a>
+<div id="survey-results-container">
+<?php foreach ($all_chart_data as $q_id => $info) { ?>
+    <div class="question-block" style="margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px;">
+        <h2>📊 <?= htmlspecialchars($info['title']) ?></h2>
+        
+        <div style="width: 400px; height: 300px;">
+            <canvas id="chart-<?= htmlspecialchars($q_id) ?>"></canvas>
+        </div>
+    </div>
+<?php } ?>
 </div>
 
-<div style="width: 400px; height: 300px;">
-    <canvas id="chart"></canvas>
-</div>
-<!-- ================================== -->
-<!-- ③ グラフ表示 -->
-<!-- ================================== -->
 <script>
-const ctx = document.getElementById('chart');
-new Chart(ctx, {
-    type: '<?= $chart_type ?>', 
-    data: {
-        labels: <?= $labels_json ?>,
-        datasets: [{
-            label: '回答数',
-            data: <?= $data_json ?>,
-            backgroundColor: [
-                // 円グラフ（pie）などの場合は、棒ごとに色が変わるように
-                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
-            ]
-        }]
-    },
-    options: {
-        responsive: true
-        // グラフの種類に応じた細かい設定（オプション）もここに書けます
-    }
-});
+// PHP側で準備した全質問の集計データをループさせて、Chart.jsをそれぞれ実行する
+<?php foreach ($all_chart_data as $q_id => $info) { ?>
+{
+    const ctx = document.getElementById('chart-<?= htmlspecialchars($q_id) ?>');
+    new Chart(ctx, {
+        type: '<?= $info['chart_type'] ?>', 
+        data: {
+            labels: <?= json_encode($info['labels']) ?>,
+            datasets: [{
+                label: '回答数',
+                data: <?= json_encode($info['data']) ?>,
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+                ]
+            }]
+        },
+        options: {
+            responsive: true
+        }
+    });
+}
+<?php } ?>
 </script>
 <hr>
 
