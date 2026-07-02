@@ -59,7 +59,7 @@ $surveys = get_all_survey_titles();
           <?php endif; ?>
         </button>
         
-        <div id="notificationPopup" class="popup-box top-12 right-0 w-80 p-4 text-gray-800 bg-white border rounded shadow-lg hidden">
+        <div id="notificationPopup" class="popup-box absolute top-16 right-0 w-80 p-4 text-gray-800 bg-white border rounded shadow-lg hidden">
           <div class="flex justify-between items-center border-b pb-2 mb-2">
             <h3 class="font-bold text-blue-900">通知一覧</h3>
             <button id="closeNotiBtn" class="text-gray-500 hover:text-gray-800 text-xl">&times;</button>
@@ -79,7 +79,7 @@ $surveys = get_all_survey_titles();
 
       <div class="relative w-64">
         <input type="text" id="survey-search" placeholder="アンケート検索" class="w-full py-2 pl-10 pr-4 rounded text-gray-800 outline-none">
-        <div id="searchPopup" class="popup-box top-12 right-0 w-full max-h-80 overflow-y-auto bg-white border rounded shadow-lg hidden">
+        <div id="searchPopup" class="popup-box absolute top-16 right-0 w-full max-h-80 overflow-y-auto bg-white border rounded shadow-lg hidden">
           <div id="search-results-container" class="p-2 text-gray-800 text-sm"></div>
         </div>
       </div>
