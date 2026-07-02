@@ -16,17 +16,10 @@ require_once __DIR__ . '/error.php';
 // 1. DB接続設定
 // ========================================
 
-if (PHP_OS_FAMILY === 'Windows') {
-    $host = "localhost";
-}else{
-    $host = "172.18.10.28";
-}
-$dsn = getenv('DB_DSN') ?: 'pgsql:host='.$host.';port=5432;dbname=group1db;options=--client_encoding=UTF8';
+$dsn = getenv('DB_DSN') ?: 'pgsql:dbname=group1db;options=--client_encoding=UTF8';
 $db_user = getenv('DB_USER') ?: 'group1';
 $db_pass = getenv('DB_PASS') ?: 'Group1';
 $pdo = null;
-
-error_log(sprintf('[db] connecting to DB host=%s dbname=%s user=%s', $host, 'group1db', $db_user));
 
 try {
     $pdo = new PDO($dsn, $db_user, $db_pass, [
@@ -35,7 +28,6 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 } catch (PDOException $e) {
-    error_log(sprintf('[db] connection failed: %s', $e->getMessage()));
     renderDbError($e);
 }
 
@@ -67,7 +59,6 @@ function executeQuery(string $sql, array $params = []): PDOStatement
         $stmt->execute($params);
         return $stmt;
     } catch (PDOException $e) {
-        error_log(sprintf('[db] query failed: %s SQL=%s PARAMS=%s', $e->getMessage(), $sql, json_encode($params, JSON_UNESCAPED_UNICODE)));
         renderDbError($e);
     }
 }
