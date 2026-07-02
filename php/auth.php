@@ -89,11 +89,11 @@ function generate_csrf(){
     if(session_status() == PHP_SESSION_NONE){
         start_sess();
     }
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    //CSRFトークンを生成してセッションに保存する
-    // if(empty($_SESSION['csrf_token'])){
-    //     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    // }
+
+    if(empty($_SESSION['csrf_token'])){
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     return $_SESSION['csrf_token'];
 }
 
