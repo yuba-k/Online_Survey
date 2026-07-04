@@ -69,7 +69,7 @@ if (!empty($birth_date_str)) {
 $success = upsert_response($survey_id, $user_id, $answer_data, $gender, $age);
 
 if ($success) {
-    unset($_SESSION['saved_answer']);
+    unset($_SESSION['autosave']);
     unset($_SESSION['csrf_token']);
 
     echo "<title>送信完了 - " . h($survey_title) . "</title>";
@@ -99,7 +99,6 @@ if ($success) {
     echo "</main>";
     require_once "footer.php";
     echo "</body>";
-    
     exit;
 }
 

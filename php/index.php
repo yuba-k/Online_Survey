@@ -858,7 +858,7 @@ try {
                                             </div>
                                             <div class="survey-actions">
                                                 <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-result-orange">結果</a>
-                                                <a href="question.php?id=<?php echo h($survey['survey_id']); ?>&mode=edit" class="action-inline-btn btn-edit-green">編集</a>
+                                                <a href="question.php?id=<?php echo h($survey['question_key']); ?>&mode=edit" class="action-inline-btn btn-edit-green">編集</a>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>

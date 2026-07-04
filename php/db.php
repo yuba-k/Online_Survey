@@ -486,6 +486,31 @@ function get_responses_by_survey_id(int $survey_id): array
 }
 
 /**
+ * 指定アンケートに対するログインユーザーの最新回答を取得する
+ */
+function get_response_by_survey_and_user(int $survey_id, ?int $user_id): ?array
+{
+    if ($user_id === null) {
+        return null;
+    }
+
+    $sql = 'SELECT response_id, survey_id, user_id, answer_data, respondent_age, respondent_gender, answered_at
+            FROM responses
+            WHERE survey_id = :survey_id AND user_id = :user_id
+            ORDER BY answered_at DESC, response_id DESC
+            LIMIT 1';
+    $stmt = executeQuery($sql, [':survey_id' => $survey_id, ':user_id' => $user_id]);
+    $response = $stmt->fetch();
+
+    if ($response === false) {
+        return null;
+    }
+
+    $response['answer_data'] = decodeJson($response['answer_data'] ?? '');
+    return $response;
+}
+
+/**
  * 回答を登録する（既存回答があれば更新）
  */
 function upsert_response(int $survey_id, ?int $user_id, array $answer_data, ?string $gender, ?string $age): bool

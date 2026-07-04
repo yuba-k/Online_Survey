@@ -22,6 +22,9 @@ $raw_autosave = $_SESSION['autosave']['answer']['data'] ?? [];
 
 $autosave = [];
 $errors = [];
+$previous_response = null;
+$previous_answers = [];
+$selected_gender = '';
 
 foreach ($raw_autosave as $key => $value) {
 
@@ -46,6 +49,22 @@ if(is_null($r)){
     renderError('存在しないページです',500,'APP','WARNING',Null,'存在しないページ');
 }else{
     $json = $r["survey_spec"];
+
+    $current_user_id = $_SESSION['user_id'] ?? null;
+    if ($current_user_id !== null && !empty($r['survey_id'])) {
+        $previous_response = get_response_by_survey_and_user((int)$r['survey_id'], (int)$current_user_id);
+    }
+    $previous_answers = is_array($previous_response['answer_data'] ?? null) ? $previous_response['answer_data'] : [];
+    $previous_gender = $previous_response['respondent_gender'] ?? null;
+    if ($previous_gender !== null) {
+        if ((int)$previous_gender === 1) {
+            $selected_gender = 'man';
+        } elseif ((int)$previous_gender === 2) {
+            $selected_gender = 'woman';
+        } elseif ((int)$previous_gender === 3) {
+            $selected_gender = 'other';
+        }
+    }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -96,7 +115,7 @@ if(is_null($r)){
         if($json["questions"][$i]["type"]=="multiple"){
             foreach($json["questions"][$i]["options"] as $item){
                 $checked = '';
-                $current = $_POST["q{$i}"] ?? $autosave["q{$i}"] ?? [];
+                $current = $_POST["q{$i}"] ?? $previous_answers["q{$i}"] ?? $autosave["q{$i}"] ?? [];
                 $current = is_array($current) ? $current : [$current];
                 if (
                     is_array($current) &&
@@ -112,7 +131,7 @@ if(is_null($r)){
         }elseif($json["questions"][$i]["type"]=="single"){
             foreach($json["questions"][$i]["options"] as $item){
                 $checked = '';
-                $current = $_POST["q{$i}"] ?? $autosave["q{$i}"] ?? '';
+                $current = $_POST["q{$i}"] ?? $previous_answers["q{$i}"] ?? $autosave["q{$i}"] ?? '';
                 if ($current === $item){
                     $checked = 'checked';
                 }
@@ -124,7 +143,7 @@ if(is_null($r)){
         }elseif($json["questions"][$i]["type"]=="text"){
             $value="";
             $value = htmlspecialchars(
-                $autosave["q{$i}"] ?? ($_POST["q{$i}"] ?? ''),
+                $_POST["q{$i}"] ?? $previous_answers["q{$i}"] ?? $autosave["q{$i}"] ?? '',
                 ENT_QUOTES,
                 'UTF-8'
             );
@@ -135,19 +154,20 @@ if(is_null($r)){
         }
         echo "</div>"; 
     }
+    $gender_value = $_POST['Q_gender'] ?? $selected_gender;
     echo "<div class='question'>";
     echo "<h2>性別を選択してください</h2>";
     echo "<label class='option'>";
-    echo "<input type='radio' name='Q_gender' value='man' required>";
+    echo "<input type='radio' name='Q_gender' value='man' required" . ($gender_value === 'man' ? ' checked' : '') . ">";
     echo "男性</label>";
     echo "<label class='option'>";
-    echo "<input type='radio' name='Q_gender' value='woman' required>";
+    echo "<input type='radio' name='Q_gender' value='woman' required" . ($gender_value === 'woman' ? ' checked' : '') . ">";
     echo "女性</label>";
     echo "<label class='option'>";
-    echo "<input type='radio' name='Q_gender' value='other' required>";
+    echo "<input type='radio' name='Q_gender' value='other' required" . ($gender_value === 'other' ? ' checked' : '') . ">";
     echo "その他</label>";
     echo "<label class='option'>";
-    echo "<input type='radio' name='Q_gender' value='doNotAnswer' required>";
+    echo "<input type='radio' name='Q_gender' value='doNotAnswer' required" . ($gender_value === 'doNotAnswer' ? ' checked' : '') . ">";
     echo "回答しない</label>";
     echo "</div><div class=question>";
     echo "<h2>生年月日を入力してください</h2>";
