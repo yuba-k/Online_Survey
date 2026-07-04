@@ -154,7 +154,7 @@ if(is_null($r)){
         }
         echo "</div>"; 
     }
-    $gender_value = $_POST['Q_gender'] ?? $selected_gender;
+    $gender_value = $_POST['Q_gender'] ?? $autosave["Q_gender"];
     echo "<div class='question'>";
     echo "<h2>性別を選択してください</h2>";
     echo "<label class='option'>";
