@@ -195,9 +195,9 @@ function get_surveys_list(int $limit, int $offset): array
 
 function get_all_survey_titles(): array
 {
-    $sql = 'SELECT title FROM surveys';
+    $sql = 'SELECT title,question_key FROM surveys';
     $stmt = executeQuery($sql);
-    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /**
