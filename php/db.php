@@ -401,7 +401,7 @@ function parse_survey_duration(array $surveySpec): int
  */
 function get_survey_by_key(string $key, string $type): ?array
 {
-    $column = $type === 'result' ? 'result_key' : 'question_key';
+    $column = $type === 'result_key' ? 'result_key' : 'question_key';
     $sql = "SELECT * FROM surveys WHERE {$column} = :key LIMIT 1";
     $stmt = executeQuery($sql, [':key' => $key]);
     $survey = $stmt->fetch();

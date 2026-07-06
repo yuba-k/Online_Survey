@@ -791,7 +791,7 @@ try {
                                                 <button type="button" class="action-inline-btn btn-extend js-extend-btn" 
                                                         data-survey-id="<?php echo h($survey['survey_id']); ?>"
                                                         data-survey-title="<?php echo h($survey['title']); ?>">延長</button>
-                                                <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-result-orange">結果</a>
+                                                <a href="result.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-result-orange">結果</a>
                                                 <a href="survey_form.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-edit-green">編集</a>
                                             </div>
                                         </div>
@@ -857,7 +857,7 @@ try {
                                                 <div class="survey-creator">作成: <?php echo h($survey['creator'] ?? '不明'); ?></div>
                                             </div>
                                             <div class="survey-actions">
-                                                <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-result-orange">結果</a>
+                                                <a href="result.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-result-orange">結果</a>
                                                 <a href="question.php?id=<?php echo h($survey['question_key']); ?>&mode=edit" class="action-inline-btn btn-edit-green">編集</a>
                                             </div>
                                         </div>
@@ -1004,7 +1004,7 @@ try {
                                             <div class="survey-creator">作成: <?php echo h($survey['creator'] ?? '不明'); ?></div>
                                         </div>
                                         <div class="survey-actions">
-                                            <a href="result.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-result-red">結果(<?php echo h($deadline_str); ?>~)</a>
+                                            <a href="result.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-result-red">結果(<?php echo h($deadline_str); ?>~)</a>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>

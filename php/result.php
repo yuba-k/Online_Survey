@@ -5,16 +5,16 @@ start_sess();
 require_once __DIR__ . '/db.php';
 
 // アンケートID
-$result_key = $_GET["question_id"] ?? '';
+$question_key = $_GET["id"] ?? '';
 $user_id = $_SESSION['user_id'] ?? 1;
-if ($result_key === '') {
+if ($question_key === '') {
     renderError('エラー：無効なアクセスです。URLをご確認ください。', 400, 'app', 'WARNING', null, 'Invalid Access');
 }
 //====================================
 // ① 集計データ取得（グラフ用）
 //====================================
 
-$survey = get_survey_by_key($result_key, 'result_key');
+$survey = get_survey_by_key($question_key, 'question_key');
 
 if ($survey === null) {
     renderError('エラー：指定されたアンケートが見つかりません。', 404, 'app', 'WARNING', null, 'Survey Not Found');
