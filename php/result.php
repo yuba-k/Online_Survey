@@ -188,20 +188,22 @@ $last_chart_key = end($chart_keys);
 <main class="max-w-7xl mx-auto p-6">
     <input type="hidden" id="current-survey-id" value="<?= htmlspecialchars((string)$survey_id) ?>">
     <span id="save-status" style="color: gray; font-size: 0.9em; float: right;"></span>
-
     <h1 class="text-3xl font-bold my-6 text-white">アンケート結果</h1>
-
-    <div id="survey-results-container">
-    <?php foreach ($all_chart_data as $q_id => $info) { 
-        if ($q_id === $last_chart_key) continue; 
-    ?>
-        <div class="question-block" style="margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px;">
-            <h2 class="text-xl font-semibold mb-4">📊 質問: <?= htmlspecialchars((string)$info['title']) ?></h2>
-            <div style="width: 400px; height: 300px;">
-                <canvas id="chart-<?= htmlspecialchars((string)$q_id) ?>"></canvas>
+    <?php if(!empty($responses)):?>
+        <div id="survey-results-container">
+        <?php foreach ($all_chart_data as $q_id => $info) { 
+            if ($q_id === $last_chart_key) continue; 
+        ?>
+            <div class="question-block" style="margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px;">
+                <h2 class="text-xl font-semibold mb-4">📊 質問: <?= htmlspecialchars((string)$info['title']) ?></h2>
+                <div style="width: 400px; height: 300px;">
+                    <canvas id="chart-<?= htmlspecialchars((string)$q_id) ?>"></canvas>
+                </div>
             </div>
-        </div>
-    <?php } ?>
+        <?php } ?>
+    <?php else:?>
+        <p>回答はまだありません</p>
+    <?php endif?>
     </div>
 
     <?php if ($last_chart_key !== false) { 
