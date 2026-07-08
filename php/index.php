@@ -484,6 +484,15 @@ try {
         .btn-result-red { background-color: #fb8b85; color: #000000; } 
         .btn-edit-green { background-color: #d2f9d2; } 
         .btn-answer { background-color: #b7e9f9; } 
+        .js-new-end-at{
+            width:170px;
+            height:32px;
+            font-size:12px;
+            border-radius:4px;
+            border:1px solid #ccc;
+            background-color: #ffffff;
+            color: #000000;
+        }
 
         .oval-btn.lift-button,
         .action-inline-btn.lift-button,
@@ -821,6 +830,9 @@ try {
                                                 <h4 class="survey-title">「<?php echo h($survey['title']); ?>〜」</h4>
                                             </div>
                                             <div class="survey-actions">
+                                                <input type="datetime-local"
+                                                       class="js-new-end-at"
+                                                       value="<?php echo date('Y-m-d\TH:i', strtotime($survey['deadline'])); ?>">
                                                 <button type="button" class="action-inline-btn btn-extend js-extend-btn lift-button" 
                                                         data-survey-id="<?php echo h($survey['survey_id']); ?>"
                                                         data-survey-title="<?php echo h($survey['title']); ?>">延長</button>
@@ -1149,14 +1161,19 @@ try {
                     const surveyId = this.dataset.surveyId;
                     const surveyTitle = this.dataset.surveyTitle;
                     const activeToken = typeof csrfToken !== 'undefined' ? csrfToken : '';
-                    
+                    const row = this.closest('.survey-row');
+                    const inputDateTime = row.querySelector('.js-new-end-at').value;
+                    if (!inputDateTime) {
+                        alert('延長する日時を指定してください。');
+                        return;
+                    }
                     fetch('index.php?api=extend', {
                         method: 'POST',
                         headers: { 
                             'Content-Type': 'application/json',
                             'X-CSRF-Token': activeToken
                         },
-                        body: JSON.stringify({  survey_id: surveyId, new_end_at: '2026-06-30T23:59'})
+                        body: JSON.stringify({  survey_id: surveyId, new_end_at: inputDateTime})
                     })
                     .then(response => response.json())
                     .then(data => {
