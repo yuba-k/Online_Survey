@@ -823,7 +823,8 @@ try {
                                             <div class="survey-actions">
                                                 <button type="button" class="action-inline-btn btn-extend js-extend-btn lift-button" 
                                                         data-survey-id="<?php echo h($survey['survey_id']); ?>"
-                                                        data-survey-title="<?php echo h($survey['title']); ?>">延長</button>
+                                                        data-survey-title="<?php echo h($survey['title']); ?>"
+                                                        data-current-deadline="<?php echo h(!empty($survey['deadline']) ? date('Y-m-d H:i:s', strtotime($survey['deadline'])) : ''); ?>">延長</button>
                                                 <a href="result.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-result-orange lift-button">結果</a>
                                                 <a href="survey_form.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-edit-green lift-button">編集</a>
                                             </div>
@@ -1148,7 +1149,17 @@ try {
                 button.addEventListener('click', function() {
                     const surveyId = this.dataset.surveyId;
                     const surveyTitle = this.dataset.surveyTitle;
+                    const currentDeadline = this.dataset.currentDeadline;
                     const activeToken = typeof csrfToken !== 'undefined' ? csrfToken : '';
+                    let newEndAt = '';
+
+                    if (currentDeadline) {
+                        const baseDate = new Date(currentDeadline.replace(' ', 'T'));
+                        if (!Number.isNaN(baseDate.getTime())) {
+                            baseDate.setDate(baseDate.getDate() + 7);
+                            newEndAt = `${baseDate.getFullYear()}-${String(baseDate.getMonth() + 1).padStart(2, '0')}-${String(baseDate.getDate()).padStart(2, '0')} ${String(baseDate.getHours()).padStart(2, '0')}:${String(baseDate.getMinutes()).padStart(2, '0')}:${String(baseDate.getSeconds()).padStart(2, '0')}`;
+                        }
+                    }
                     
                     fetch('index.php?api=extend', {
                         method: 'POST',
@@ -1156,7 +1167,7 @@ try {
                             'Content-Type': 'application/json',
                             'X-CSRF-Token': activeToken
                         },
-                        body: JSON.stringify({  survey_id: surveyId, new_end_at: '2026-06-30T23:59'})
+                        body: JSON.stringify({ survey_id: surveyId, new_end_at: newEndAt })
                     })
                     .then(response => response.json())
                     .then(data => {
