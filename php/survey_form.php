@@ -185,6 +185,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'end_at'      => $end_at,
         ];
 
+        // 目安回答時間は作成者が指定せず、設問タイプと量から自動計算する
+        unset($spec['estimated_minutes'], $spec['duration']);
+
         try {
 
             if ($edit_mode && $survey_key !== null) {
