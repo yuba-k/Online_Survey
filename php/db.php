@@ -350,7 +350,7 @@ function extend_survey_deadline(int $survey_id, int $user_id, string $new_end_at
         }
 
         // タイムゾーン対応：明示的にUTCで統一
-        $newEndAtFormatted = date('c', $parsedTime);
+        $newEndAtFormatted = date('Y-m-d H:i:s', $parsedTime);
 
         $sql = "UPDATE surveys 
                 SET end_at = :new_end_at,
