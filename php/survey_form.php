@@ -185,6 +185,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'end_at'      => $end_at,
         ];
 
+        // 目安回答時間は作成者が指定せず、設問タイプと量から自動計算する
+        unset($spec['estimated_minutes'], $spec['duration']);
+
         try {
 
             if ($edit_mode && $survey_key !== null) {
@@ -231,13 +234,80 @@ include 'header.php';
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アンケート作成 - 村上製作所</title>
+
+    <!-- index.php / result.php と同じ読み込み順 -->
+    <link rel="stylesheet" href="../css/reset.css">
+    <link rel="stylesheet" href="../css/question.css">
+    <link rel="stylesheet" href="../css/footer.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/readability.css">
+
+    <style>
+        /* index.php / result.php と同じ背景色 */
+        body {
+            background-color: #1e2d5a;
+            color: #ffffff;
+        }
+
+        /* ================================
+           index.php と同じヘッダーを再現する強制CSS
+           ================================ */
+        header.w-full.bg-
+
+\[\#1e3a8a\]
+
+.text-white.fixed.top-0.left-0.h-16.z-
+
+\[9999\]
+
+.shadow-lg {
+            background-color: #1E3A8A !important;
+            height: 64px !important;
+            padding-left: 24px !important;
+            padding-right: 24px !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+        header .fa-house {
+            color: #ffffff !important;
+            font-size: 26px !important;
+        }
+
+        header .font-bold {
+            color: #ffffff !important;
+            font-size: 22px !important;
+            font-weight: bold !important;
+        }
+
+        header .fa-bell {
+            color: #ffffff !important;
+            font-size: 26px !important;
+        }
+
+        header input#survey-search {
+            background: #ffffff !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
+            color: #333 !important;
+            width: 220px !important;
+            border: none !important;
+            outline: none !important;
+        }
+    </style>
+</head>
+
 <meta charset="UTF-8">
 <title><?= $edit_mode ? 'アンケート編集' : 'アンケート新規作成' ?></title>
 
 <style>
 body {
     font-family: "Yu Gothic", sans-serif;
-    background: #1E3A8A; /* PDF の青背景 */
+    background: #1e2d5a; /* PDF の青背景 */
     padding: 20px;
     color: #111827; /* 黒文字 */
 }
@@ -318,36 +388,99 @@ body {
     margin-top: 20px;
 }
 
+.btn-delete {
+    background: #DC2626; /* 赤 */
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+/* index.php と同じヘッダーを再現する強制CSS */
+header.w-full.bg-
+
+\[\#1e3a8a\]
+
+.text-white.fixed.top-0.left-0.h-16.z-
+
+\[9999\]
+
+.shadow-lg {
+    background-color: #1E3A8A !important;
+    height: 64px !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+header .fa-house {
+    color: #ffffff !important;
+    font-size: 26px !important;
+}
+
+header .font-bold {
+    color: #ffffff !important;
+    font-size: 22px !important;
+    font-weight: bold !important;
+}
+
+header .fa-bell {
+    color: #ffffff !important;
+    font-size: 26px !important;
+}
+
+header input#survey-search {
+    background: #ffffff !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    color: #333 !important;
+    width: 220px !important;
+    border: none !important;
+    outline: none !important;
+}
+
+
 </style>
 
 <script>
 // 質問追加（既存構造に合わせる）
-function addQuestion() {
-    const qArea = document.getElementById("questions");
-    const index = qArea.children.length;
+function addQuestion(existingData = null) {
+    const container = document.getElementById('questions');
+    const index = container.children.length;  // ★ 1始まりにする
 
-    const div = document.createElement("div");
-    div.className = "question-block";
+    const div = document.createElement('div');
+    div.className = 'question-block border p-3 mb-3';
+    div.id = `question-${index}`;
+
+    const deleteButton =
+        index === 1 ? "" :
+        `<button type="button" class="btn-delete" onclick="deleteQuestion(${index})">削除</button>`;
 
     div.innerHTML = `
-        <h3>質問${index + 1}</h3>
+        <h3>質問${index}</h3>
 
         <label>質問文</label>
-        <input type="text" name="q_label[${index}]" class="input-text">
+        <input type="text" name="q_label[${index}]" class="input-text"
+               value="${existingData ? existingData.label : ''}">
 
         <label>回答形式</label>
-        <select name="q_type[${index}]" class="input-select" onchange="toggleOptions(this, ${index})">
-            <option value="single">択一選択</option>
-            <option value="multiple">複数選択</option>
-            <option value="text">自由記述</option>
+        <select name="q_type[${index}]" class="input-select"
+                onchange="toggleOptions(this, ${index})">
+            <option value="single" ${existingData?.type === 'single' ? 'selected' : ''}>択一選択</option>
+            <option value="multiple" ${existingData?.type === 'multiple' ? 'selected' : ''}>複数選択</option>
+            <option value="text" ${existingData?.type === 'text' ? 'selected' : ''}>自由記述</option>
         </select>
 
-        <div id="opt-wrap-${index}">
-            <label>選択肢（カンマ区切り）</label>
-            <input type="text" name="q_options[${index}]" class="input-text">
+        <div id="opt-wrap-${index}" style="${existingData?.type === 'text' ? 'display:none;' : ''}">
+            <label>選択肢</label>
+            <div id="options-${index}" class="option-list"></div>
+            <button type="button" class="btn-add" onclick="addOption(${index})">＋選択肢追加</button>
         </div>
 
-        <label>結果表示形式</label>
+         <label>結果表示形式</label>
         <select name="q_result_display[${index}]" class="input-select">
             <option value="bar">ヒストグラム</option>
             <option value="table">集計表</option>
@@ -355,10 +488,131 @@ function addQuestion() {
             <option value="pie3d">3D円グラフ</option>
             <option value="text">テキスト</option>
         </select>
+
+        ${deleteButton}
     `;
 
-    qArea.appendChild(div);
+    container.appendChild(div);
+
+    // ★ 初期選択肢を2つ作る
+    if (existingData && existingData.options) {
+        existingData.options.forEach(opt => addOption(index, opt));
+    } else {
+        addOption(index);
+        addOption(index);
+    }
 }
+
+
+function addOption(qIndex, value = "") {
+    const optContainer = document.getElementById(`options-${qIndex}`);
+    const optIndex = optContainer.children.length;
+
+    const div = document.createElement('div');
+    div.className = "option-block flex items-center gap-2";
+    div.id = `option-${qIndex}-${optIndex}`;
+
+    const numberLabel = `<span class="option-number">${optIndex + 1}.</span>`;
+
+    const deleteBtn =
+        optIndex >= 2
+        ? `<button type="button" class="btn-delete" onclick="deleteOption(${qIndex}, ${optIndex})">削除</button>`
+        : "";
+
+    div.innerHTML = `
+        ${numberLabel}
+        <input type="text" class="input-text option-input"
+               data-q="${qIndex}" data-opt="${optIndex}"
+               value="${value}">
+        ${deleteBtn}
+    `;
+
+    optContainer.appendChild(div);
+
+    renumberOptions(qIndex);
+}
+
+
+
+
+function deleteOption(qIndex, optIndex) {
+    const optContainer = document.getElementById(`options-${qIndex}`);
+    const currentCount = optContainer.querySelectorAll(".option-block").length;
+
+    if (currentCount <= 2) {
+        alert("選択肢は最低2つ必要です。");
+        return;
+    }
+
+    const target = document.getElementById(`option-${qIndex}-${optIndex}`);
+    if (target) target.remove();
+
+    renumberOptions(qIndex);
+}
+
+
+
+function renumberOptions(qIndex) {
+    const optContainer = document.getElementById(`options-${qIndex}`);
+    const blocks = optContainer.querySelectorAll(".option-block");
+
+    blocks.forEach((block, i) => {
+        block.querySelector(".option-number").textContent = `${i + 1}.`;
+
+        const btn = block.querySelector(".btn-delete");
+        if (btn) {
+            btn.style.display = (i >= 2) ? "inline-block" : "none";
+        }
+    });
+}
+
+
+
+document.querySelector("form").addEventListener("submit", () => {
+    const allOptionInputs = document.querySelectorAll(".option-input");
+
+    const grouped = {};
+
+    allOptionInputs.forEach(inp => {
+        const q = inp.dataset.q;
+        if (!grouped[q]) grouped[q] = [];
+        if (inp.value.trim() !== "") grouped[q].push(inp.value.trim());
+    });
+
+    // hidden input にまとめて入れる
+    Object.keys(grouped).forEach(q => {
+        const hidden = document.createElement("input");
+        hidden.type = "hidden";
+        hidden.name = `q_options[${q}]`;
+        hidden.value = grouped[q].join(",");
+        document.querySelector("form").appendChild(hidden);
+    });
+});
+
+function refreshOptionDeleteButtons(qIndex) {
+    const optContainer = document.getElementById(`options-${qIndex}`);
+    const blocks = optContainer.querySelectorAll(".option-block");
+
+    blocks.forEach((block, i) => {
+        const btn = block.querySelector(".btn-delete");
+        if (blocks.length <= 2) {
+            btn.style.display = "none";
+        } else {
+            btn.style.display = "inline-block";
+        }
+    });
+}
+
+
+
+function deleteQuestion(index) {
+    const target = document.getElementById(`question-${index}`);
+    if (target) {
+        target.remove();
+    }
+}
+
+
 
 // 回答形式変更
 function toggleOptions(sel, index) {
@@ -431,7 +685,7 @@ window.addEventListener("load", () => {
 
 <!-- 3. 回答期限（元の datetime-local 方式） -->
 <div class="section">
-    <h2>6. 回答期限を選択してください</h2>
+    <h2>2. 回答期限を選択してください</h2>
 
     <label>開始日時</label>
     <input type="datetime-local" name="start_at" class="input-text"
@@ -452,7 +706,7 @@ window.addEventListener("load", () => {
 
 <!-- 5. 集計設定 -->
 <div class="section">
-    <h2>5. 年齢別、性別も集計しますか？</h2>
+    <h2>3. 年齢別、性別も集計しますか？</h2>
     <select name="agg_gender_age" class="input-select">
         <option value="yes" <?= !empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>はい</option>
         <option value="no" <?= empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>いいえ</option>
@@ -461,7 +715,7 @@ window.addEventListener("load", () => {
 
 <!-- 6. 質問一覧 -->
 <div class="section">
-    <h2>2. 質問を記入してください</h2>
+    <h2>4. 質問を記入してください</h2>
 
     <div id="questions">
         <?php if (!empty($spec['questions'])): ?>

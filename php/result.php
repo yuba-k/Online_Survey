@@ -260,8 +260,8 @@ $last_chart_key = end($chart_keys);
         </div>
     </section>
     <div class="mt-12 flex gap-4">
-        <a href="download.php?key=<?= htmlspecialchars($result_key) ?>&format=csv" target="_blank" class="text-blue-300 hover:underline lift-button">CSV形式でダウンロード</a>
-        <a href="download.php?key=<?= htmlspecialchars($result_key) ?>&format=pdf" target="_blank" class="text-blue-300 hover:underline lift-button">PDF形式でダウンロード</a>
+        <a href="download.php?key=<?= htmlspecialchars($result_key) ?>&format=csv" target="_blank" class="text-blue-300 hover:underline">CSV形式でダウンロード</a>
+        <a href="download.php?key=<?= htmlspecialchars($result_key) ?>&format=pdf" target="_blank" class="text-blue-300 hover:underline">PDF形式でダウンロード</a>
     </div>
 </main>
 

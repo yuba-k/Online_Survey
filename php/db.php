@@ -377,23 +377,37 @@ function extend_survey_deadline(int $survey_id, int $user_id, string $new_end_at
 }
 
 /**
- * survey_spec から所要時間を取得する
+ * survey_spec から目安回答時間を自動計算する
+ * ルール: 単一選択=15秒 / 複数選択=20秒 / テキスト=60秒
+ * 合計秒数を分に換算し、1分未満は1分に切り上げる
  */
 function parse_survey_duration(array $surveySpec): int
 {
-    if (isset($surveySpec['estimated_minutes'])) {
-        return (int)$surveySpec['estimated_minutes'];
+    $questions = $surveySpec['questions'] ?? [];
+    if (!is_array($questions) || $questions === []) {
+        return 0;
     }
 
-    if (isset($surveySpec['duration'])) {
-        return (int)$surveySpec['duration'];
+    $totalSeconds = 0;
+    foreach ($questions as $question) {
+        $type = $question['type'] ?? 'single';
+
+        switch ($type) {
+            case 'multiple':
+                $totalSeconds += 20;
+                break;
+            case 'text':
+                $totalSeconds += 60;
+                break;
+            case 'single':
+            default:
+                $totalSeconds += 15;
+                break;
+        }
     }
 
-    if (isset($surveySpec['questions']) && is_array($surveySpec['questions'])) {
-        return count($surveySpec['questions']);
-    }
-
-    return 0;
+    $minutes = (int)ceil($totalSeconds / 60);
+    return max(1, $minutes);
 }
 
 /**
