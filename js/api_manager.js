@@ -14,6 +14,19 @@
  * ------------------------------------------------------------------------
  */
 
+const pendingLikeRequests = new Map();
+
+function setLikeButtonPending(commentId, pending) {
+    const countElement = document.getElementById(`like-count-${commentId}`);
+    const button = countElement ? countElement.closest('button') : null;
+    if (!button) return;
+
+    button.disabled = pending;
+    button.classList.toggle('opacity-60', pending);
+    button.classList.toggle('cursor-not-allowed', pending);
+    button.setAttribute('aria-busy', pending ? 'true' : 'false');
+}
+
 /**
  * ① コメント投稿処理
  * 概要：テキストエリアの文字を取得し、api.phpに送信。成功すればHTML要素として追記します。
@@ -102,6 +115,15 @@ async function postComment() {
  */
 async function toggleLike(commentId) {
     if (!commentId) return;
+
+    const requestKey = String(commentId);
+    if (pendingLikeRequests.has(requestKey)) {
+        return;
+    }
+
+    pendingLikeRequests.set(requestKey, true);
+    setLikeButtonPending(requestKey, true);
+
     const API_ENDPOINT = '/php/api.php';
     const formData = new FormData();
     formData.append('action', 'like');
@@ -110,6 +132,8 @@ async function toggleLike(commentId) {
     const token = getCsrfToken();
     if (!token) {
         console.warn('CSRF token missing; like aborted');
+        pendingLikeRequests.delete(requestKey);
+        setLikeButtonPending(requestKey, false);
         return;
     }
     // CSRF はヘッダで送信
@@ -137,7 +161,10 @@ async function toggleLike(commentId) {
             // いいねの数字を表示している<span>の中身を、サーバーから返ってきた最新の数字で上書き
             const countElement = document.getElementById(`like-count-${commentId}`);
             if (countElement) {
-                countElement.textContent = data.total_likes;
+                const parsedCount = Number.parseInt(data.total_likes, 10);
+                if (Number.isFinite(parsedCount)) {
+                    countElement.textContent = String(parsedCount);
+                }
             }
 
             // キリ番などの条件を満たした場合、音声演出を実行
@@ -148,6 +175,9 @@ async function toggleLike(commentId) {
         }
     } catch (error) {
         console.error('いいね処理エラー:', error);
+    } finally {
+        pendingLikeRequests.delete(requestKey);
+        setLikeButtonPending(requestKey, false);
     }
 }
 /**
