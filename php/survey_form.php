@@ -449,7 +449,7 @@ header input#survey-search {
 // 質問追加（既存構造に合わせる）
 function addQuestion(existingData = null) {
     const container = document.getElementById('questions');
-    const index = container.children.length;  // ★ 1始まりにする
+    const index = container.children.length + 1;
 
     const div = document.createElement('div');
     div.className = 'question-block border p-3 mb-3';
@@ -568,24 +568,29 @@ function renumberOptions(qIndex) {
 
 
 
-document.querySelector("form").addEventListener("submit", () => {
-    const allOptionInputs = document.querySelectorAll(".option-input");
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.querySelector('form');
+    if (!form) return;
 
-    const grouped = {};
+    form.addEventListener('submit', () => {
+        form.querySelectorAll('input[name^="q_options["]').forEach(el => el.remove());
 
-    allOptionInputs.forEach(inp => {
-        const q = inp.dataset.q;
-        if (!grouped[q]) grouped[q] = [];
-        if (inp.value.trim() !== "") grouped[q].push(inp.value.trim());
-    });
+        const allOptionInputs = form.querySelectorAll('.option-input');
+        const grouped = {};
 
-    // hidden input にまとめて入れる
-    Object.keys(grouped).forEach(q => {
-        const hidden = document.createElement("input");
-        hidden.type = "hidden";
-        hidden.name = `q_options[${q}]`;
-        hidden.value = grouped[q].join(",");
-        document.querySelector("form").appendChild(hidden);
+        allOptionInputs.forEach(inp => {
+            const q = inp.dataset.q;
+            if (!grouped[q]) grouped[q] = [];
+            if (inp.value.trim() !== '') grouped[q].push(inp.value.trim());
+        });
+
+        Object.keys(grouped).forEach(q => {
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = `q_options[${q}]`;
+            hidden.value = grouped[q].join(',');
+            form.appendChild(hidden);
+        });
     });
 });
 
