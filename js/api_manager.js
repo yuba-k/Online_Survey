@@ -16,6 +16,10 @@
 
 const pendingLikeRequests = new Map();
 
+function getApiEndpoint() {
+    return new URL('./api.php', window.location.href).toString();
+}
+
 function setLikeButtonPending(commentId, pending) {
     const countElement = document.getElementById(`like-count-${commentId}`);
     const button = countElement ? countElement.closest('button') : null;
@@ -49,7 +53,7 @@ async function postComment() {
     }
 
     // 2. api.phpへ送るデータの梱包
-    const API_ENDPOINT = '/php/api.php';
+    const API_ENDPOINT = getApiEndpoint();
     const formData = new FormData();
     formData.append('action', 'comment');
     formData.append('survey_id', surveyIdInput.value);
@@ -124,7 +128,7 @@ async function toggleLike(commentId) {
     pendingLikeRequests.set(requestKey, true);
     setLikeButtonPending(requestKey, true);
 
-    const API_ENDPOINT = '/php/api.php';
+    const API_ENDPOINT = getApiEndpoint();
     const formData = new FormData();
     formData.append('action', 'like');
     formData.append('comment_id', commentId);
@@ -169,7 +173,7 @@ async function toggleLike(commentId) {
 
             // キリ番などの条件を満たした場合、音声演出を実行
             if (data.play_voice) {
-                const audio = new Audio('/assets/iidesune_doukome.mp3');
+                const audio = new Audio(new URL('../assets/iidesune_doukome.mp3', window.location.href).toString());
                 audio.play().catch(e => console.warn('音声再生がブラウザにブロックされました', e));
             }
         }
@@ -203,7 +207,7 @@ async function autoSave(type) {
         }
     }
 
-    const API_ENDPOINT = '/php/api.php';
+    const API_ENDPOINT = getApiEndpoint();
     const formData = new FormData();
     formData.append('action', 'save');
     formData.append('type', type);
