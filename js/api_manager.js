@@ -17,7 +17,20 @@
 const pendingLikeRequests = new Map();
 
 function getApiEndpoint() {
-    return new URL('./api.php', window.location.href).toString();
+    const currentUrl = new URL(window.location.href);
+    const basePath = currentUrl.pathname.replace(/[^/]*$/, '');
+
+    const candidates = [];
+    const thisDir = currentUrl.pathname.replace(/[^/]*$/, '');
+    if (thisDir.endsWith('/php/')) {
+        candidates.push(new URL('./api.php', currentUrl.href).toString());
+    }
+    candidates.push(new URL('../php/api.php', currentUrl.href).toString());
+    candidates.push(new URL('./php/api.php', currentUrl.href).toString());
+    candidates.push(new URL('/php/api.php', currentUrl.href).toString());
+    candidates.push(new URL('/api.php', currentUrl.href).toString());
+
+    return candidates.filter((value, index, array) => array.indexOf(value) === index)[0];
 }
 
 function escapeHtml(value) {
