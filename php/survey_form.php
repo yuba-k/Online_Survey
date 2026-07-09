@@ -245,9 +245,17 @@ include 'header.php';
 
     <style>
         /* index.php / result.php と同じ背景色 */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
             background-color: #1e2d5a;
             color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
         /* ================================
@@ -298,26 +306,31 @@ include 'header.php';
     </style>
 </head>
 
+<body>
+
 <meta charset="UTF-8">
 <title><?= $edit_mode ? 'アンケート編集' : 'アンケート新規作成' ?></title>
 
 <style>
 body {
     font-family: "Yu Gothic", sans-serif;
-    background: #1e2d5a; /* PDF の青背景 */
-    padding: 20px;
-    color: #111827; /* 黒文字 */
+    background: #1e2d5a;
+    color: #111827;
 }
 
 .survey-container {
+    margin-top: 100px;
     max-width: 700px;
-    margin: auto;
-    background: #ffffff; /* 白カード */
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 40px;
+    background: #ffffff;
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 0 15px rgba(0,0,0,0.15);
     border: 1px solid #dddddd;
 }
+
 
 .section {
     margin-bottom: 30px;
@@ -439,14 +452,15 @@ header input#survey-search {
     outline: none !important;
 }
 
-
 </style>
 
 <script>
 // 質問追加（既存構造に合わせる）
+let questionIndex = 1;   // ★ グローバルで管理する
+
 function addQuestion(existingData = null) {
     const container = document.getElementById('questions');
-    const index = container.children.length + 1;
+    const index = questionIndex++;   // ★ これで採番が壊れない
 
     const div = document.createElement('div');
     div.className = 'question-block border p-3 mb-3';
@@ -477,7 +491,7 @@ function addQuestion(existingData = null) {
             <button type="button" class="btn-add" onclick="addOption(${index})">＋選択肢追加</button>
         </div>
 
-         <label>結果表示形式</label>
+        <label>結果表示形式</label>
         <select name="q_result_display[${index}]" class="input-select">
             <option value="bar" ${existingData?.result_display === 'bar' ? 'selected' : ''}>ヒストグラム</option>
             <option value="table" ${existingData?.result_display === 'table' ? 'selected' : ''}>集計表</option>
@@ -491,7 +505,7 @@ function addQuestion(existingData = null) {
 
     container.appendChild(div);
 
-    // ★ 初期選択肢を2つ作る
+    // 初期選択肢
     if (existingData && existingData.options) {
         existingData.options.forEach(opt => addOption(index, opt));
     } else {
@@ -499,6 +513,7 @@ function addQuestion(existingData = null) {
         addOption(index);
     }
 }
+
 
 
 function addOption(qIndex, value = "") {
@@ -518,8 +533,7 @@ function addOption(qIndex, value = "") {
 
     div.innerHTML = `
         ${numberLabel}
-        <input type="text" class="input-text option-input"
-               data-q="${qIndex}" data-opt="${optIndex}"
+        <input type="text" name="q_option[${qIndex}][]" class="input-text option-input"
                value="${value}">
         ${deleteBtn}
     `;
@@ -528,6 +542,7 @@ function addOption(qIndex, value = "") {
 
     renumberOptions(qIndex);
 }
+
 
 
 
@@ -562,34 +577,6 @@ function renumberOptions(qIndex) {
         }
     });
 }
-
-
-
-document.addEventListener('DOMContentLoaded', () => {
-    const form = document.querySelector('form');
-    if (!form) return;
-
-    form.addEventListener('submit', () => {
-        form.querySelectorAll('input[name^="q_options["]').forEach(el => el.remove());
-
-        const allOptionInputs = form.querySelectorAll('.option-input');
-        const grouped = {};
-
-        allOptionInputs.forEach(inp => {
-            const q = inp.dataset.q;
-            if (!grouped[q]) grouped[q] = [];
-            if (inp.value.trim() !== '') grouped[q].push(inp.value.trim());
-        });
-
-        Object.keys(grouped).forEach(q => {
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = `q_options[${q}]`;
-            hidden.value = grouped[q].join(',');
-            form.appendChild(hidden);
-        });
-    });
-});
 
 function refreshOptionDeleteButtons(qIndex) {
     const optContainer = document.getElementById(`options-${qIndex}`);
@@ -647,6 +634,7 @@ window.addEventListener("load", () => {
     fill("end_year", years);
     fill("end_month", months);
     fill("end_day", days);
+
 });
 </script>
 
@@ -667,76 +655,86 @@ window.addEventListener("load", () => {
     </div>
 <?php endif; ?>
 
-<form method="post">
-<input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
-<input type="hidden" name="survey_id" value="<?= htmlspecialchars($survey_id ?? '', ENT_QUOTES, 'UTF-8') ?>">
+<form action="survey_confirm.php" method="POST">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
+    <input type="hidden" name="survey_id" value="<?= htmlspecialchars($survey_id ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
-<!-- 1. タイトル -->
-<div class="section">
-    <h2>1. アンケートのタイトルを記入してください</h2>
-    <input type="text" name="title" class="input-text"
-           value="<?= htmlspecialchars($survey['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-</div>
+    <!-- 1. タイトル -->
+    <div class="section">
+        <h2>1. アンケートのタイトルを記入してください</h2>
+        <input type="text" name="title" class="input-text"
+               value="<?= htmlspecialchars($survey['title'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+    </div>
 
-<!-- 2. 説明文 -->
-<div class="section">
-    <h2>アンケート説明文</h2>
-    <textarea name="description" class="input-text" rows="3"><?= 
-        htmlspecialchars($spec['title'] ?? '', ENT_QUOTES, 'UTF-8') 
-    ?></textarea>
-</div>
+    <!-- 2. 説明文 -->
+    <div class="section">
+        <h2>アンケート説明文</h2>
+        <textarea name="description" class="input-text" rows="3"><?= 
+            htmlspecialchars($spec['title'] ?? '', ENT_QUOTES, 'UTF-8') 
+        ?></textarea>
+    </div>
 
-<!-- 3. 回答期限（元の datetime-local 方式） -->
-<div class="section">
-    <h2>2. 回答期限を選択してください</h2>
+    <!-- 3. 回答期限 -->
+    <div class="section">
+        <h2>2. 回答期限を選択してください</h2>
 
-    <label>開始日時</label>
-    <input type="datetime-local" name="start_at" class="input-text"
-           value="<?= htmlspecialchars($spec['start_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+        <label>開始日時</label>
+        <input type="datetime-local" name="start_at" class="input-text"
+               value="<?= htmlspecialchars($spec['start_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
-    <label style="margin-top:15px;">終了日時</label>
-    <input type="datetime-local" name="end_at" class="input-text"
-           value="<?= htmlspecialchars($spec['end_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-</div>
+        <label style="margin-top:15px;">終了日時</label>
+        <input type="datetime-local" name="end_at" class="input-text"
+               value="<?= htmlspecialchars($spec['end_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+    </div>
 
+    <!-- 4. タグ -->
+    <div class="section">
+        <h2>タグ（カンマ区切り）</h2>
+        <input type="text" name="tags" class="input-text"
+               value="<?= htmlspecialchars(implode(',', $spec['Survey_tag'] ?? []), ENT_QUOTES, 'UTF-8') ?>">
+    </div>
 
-<!-- 4. タグ -->
-<div class="section">
-    <h2>タグ（カンマ区切り）</h2>
-    <input type="text" name="tags" class="input-text"
-           value="<?= htmlspecialchars(implode(',', $spec['Survey_tag'] ?? []), ENT_QUOTES, 'UTF-8') ?>">
-</div>
+    <!-- 5. 集計設定 -->
+    <div class="section">
+        <h2>3. 年齢別、性別も集計しますか？</h2>
+        <select name="agg_gender_age" class="input-select">
+            <option value="yes" <?= !empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>はい</option>
+            <option value="no" <?= empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>いいえ</option>
+        </select>
+    </div>
 
-<!-- 5. 集計設定 -->
-<div class="section">
-    <h2>3. 年齢別、性別も集計しますか？</h2>
-    <select name="agg_gender_age" class="input-select">
-        <option value="yes" <?= !empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>はい</option>
-        <option value="no" <?= empty($spec['aggregate']['gender']) ? 'selected' : '' ?>>いいえ</option>
-    </select>
-</div>
-
-<!-- 6. 質問一覧 -->
+    <!-- 6. 質問一覧 -->
 <div class="section">
     <h2>4. 質問を記入してください</h2>
 
-    <div id="questions">
-        <?php if (!empty($spec['questions'])): ?>
-            <?php foreach ($spec['questions'] as $i => $q): ?>
-                <script>window.addEventListener('load', () => addQuestion(<?= json_encode($q, JSON_UNESCAPED_UNICODE) ?>));</script>
-            <?php endforeach; ?>
-        <?php else: ?>
-            <script>window.addEventListener('load', () => addQuestion());</script>
-        <?php endif; ?>
-    </div>
+    <div id="questions"></div>
 
+    <script>
+    <?php if (!empty($spec['questions'])): ?>
+        <?php foreach ($spec['questions'] as $i => $q): ?>
+            window.addEventListener('load', () => addQuestion(<?= json_encode($q) ?>));
+        <?php endforeach; ?>
+    <?php else: ?>
+        window.addEventListener('load', () => addQuestion());
+    <?php endif; ?>
+    </script>
+
+    <!-- 質問追加ボタン -->
     <button type="button" class="btn-add" onclick="addQuestion()">＋</button>
 </div>
 
-<button type="submit" class="btn-submit">送信画面へ</button>
+<!-- ★ 送信ボタンは form の中に置く（重要） -->
+<button type="submit" class="btn-submit">送信確認へ</button>
 
 </form>
 
 </div>
 </body>
 </html>
+
+<?php include 'footer.php'; ?>
+
+
+
+
+
