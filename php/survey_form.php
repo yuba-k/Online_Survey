@@ -3,15 +3,14 @@
 // survey_form.php（アンケート作成・編集）
 // ========================================
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
 
 require_once 'auth.php';
 require_once 'db.php';
 require_once 'security.php';
 require_once 'logger.php';
 require_once __DIR__ . '/error.php';
+
+start_sess();
 
 // ----------------------------------------
 // 1. ログインチェック
@@ -22,10 +21,7 @@ $user_id = $_SESSION['user_id'] ?? null;
 // ----------------------------------------
 // 2. CSRF トークン
 // ----------------------------------------
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
+$csrf_token = generate_csrf();
 
 // ----------------------------------------
 // 3. 編集モード判定
@@ -53,6 +49,7 @@ if (!empty($_GET['key'])) {
     if ($survey && $survey['creator_id'] == $user_id) {
         $edit_mode = true;
         $spec = $survey['survey_spec'];
+        $survey_id = $survey['survey_id'];
     } else {
         renderError('不正アクセスです。編集権限がありません。', 403, 'auth', 'WARNING');
     }
@@ -189,17 +186,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         unset($spec['estimated_minutes'], $spec['duration']);
 
         try {
+            $survey_id = $survey['survey_id'] ?? null;
+            if ($edit_mode && $survey_id !== null) {
+                $uppdate_data = [
+                    'title'       => $title,
+                    'survey_spec' => $spec,
+                    'start_at'    => $start_at,
+                    'end_at'      => $end_at,
+                ];
 
-            if ($edit_mode && $survey_key !== null) {
-
-                update_survey(
-                    $survey_key,
-                    $title,
-                    $spec,
-                    $user_id,
-                    $start_at,
-                    $end_at
-                );
+                update_survey($survey_id,$uppdate_data);
 
                 header("Location: question.php?question_id=" . urlencode($survey_key));
                 exit;
@@ -219,8 +215,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
         } catch (Throwable $e) {
-            $errors[] = '登録中にエラーが発生しました。';
-            writeLog('survey_form', 'ERROR', '登録エラー: ' . $e->getMessage());
+            die("error". $e->getMessage());
+            // $errors[] = '登録中にエラーが発生しました。';
+            // writeLog('survey_form', 'ERROR', '登録エラー: ' . $e->getMessage());
         }
     }
 }
@@ -482,11 +479,11 @@ function addQuestion(existingData = null) {
 
          <label>結果表示形式</label>
         <select name="q_result_display[${index}]" class="input-select">
-            <option value="bar">ヒストグラム</option>
-            <option value="table">集計表</option>
-            <option value="pie">円グラフ</option>
-            <option value="pie3d">3D円グラフ</option>
-            <option value="text">テキスト</option>
+            <option value="bar" ${existingData?.result_display === 'bar' ? 'selected' : ''}>ヒストグラム</option>
+            <option value="table" ${existingData?.result_display === 'table' ? 'selected' : ''}>集計表</option>
+            <option value="pie" ${existingData?.result_display === 'pie' ? 'selected' : ''}>円グラフ</option>
+            <option value="pie3d" ${existingData?.result_display === 'pie3d' ? 'selected' : ''}>3D円グラフ</option>
+            <option value="text" ${existingData?.result_display === 'text' ? 'selected' : ''}>テキスト</option>
         </select>
 
         ${deleteButton}
@@ -672,6 +669,7 @@ window.addEventListener("load", () => {
 
 <form method="post">
 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8') ?>">
+<input type="hidden" name="survey_id" value="<?= htmlspecialchars($survey_id ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
 <!-- 1. タイトル -->
 <div class="section">
@@ -725,7 +723,7 @@ window.addEventListener("load", () => {
     <div id="questions">
         <?php if (!empty($spec['questions'])): ?>
             <?php foreach ($spec['questions'] as $i => $q): ?>
-                <script>window.addEventListener('load', () => addQuestion());</script>
+                <script>window.addEventListener('load', () => addQuestion(<?= json_encode($q, JSON_UNESCAPED_UNICODE) ?>));</script>
             <?php endforeach; ?>
         <?php else: ?>
             <script>window.addEventListener('load', () => addQuestion());</script>

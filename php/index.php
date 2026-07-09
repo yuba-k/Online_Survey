@@ -840,7 +840,7 @@ try {
                                                         data-survey-id="<?php echo h($survey['survey_id']); ?>"
                                                         data-survey-title="<?php echo h($survey['title']); ?>">延長</button>
                                                 <a href="result.php?id=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-result-orange lift-button">結果</a>
-                                                <a href="survey_form.php?id=<?php echo h($survey['survey_id']); ?>" class="action-inline-btn btn-edit-green lift-button">編集</a>
+                                                <a href="survey_form.php?key=<?php echo h($survey['question_key']); ?>" class="action-inline-btn btn-edit-green lift-button">編集</a>
                                             </div>
                                         </div>
                                     <?php endforeach; ?>
