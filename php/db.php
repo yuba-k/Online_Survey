@@ -228,24 +228,19 @@ function get_homepage_survey_list(string $listType, string $sortOrder, ?int $use
         'アンケート' => 'all',
         '調査結果' => 'results',
     ];
-    $orderMap = [
-        '開始期限' => 'COALESCE(s.end_at, CURRENT_TIMESTAMP) ASC',
-        '新着' => 's.created_at DESC',
-        '回答数' => 'COALESCE(resp.response_count, 0) DESC, s.created_at DESC',
-    ];
 
-    if (!isset($typeMap[$listType]) || !isset($orderMap[$sortOrder])) {
+    if (!isset($typeMap[$listType])) {
         return [];
     }
 
     $type = $typeMap[$listType];
-    $orderBy = $orderMap[$sortOrder];
 
     $sql = 'SELECT s.survey_id,
                    s.title,
                    s.end_at,
                    s.question_key,
                    s.result_key,
+                   s.created_at,
                    u.account_name AS creator,
                    COALESCE(resp.response_count, 0) AS response_count,
                    s.survey_spec
@@ -293,9 +288,17 @@ function get_homepage_survey_list(string $listType, string $sortOrder, ?int $use
         $sql .= ' WHERE ' . implode(' AND ', $conditions);
     }
 
-    $sql .= " ORDER BY {$orderBy} LIMIT :limit OFFSET :offset";
+    $stmt = executeQuery($sql, $params);
+    $rows = $stmt->fetchAll();
 
-    // ページネーション用パラメータを確実に整数にキャストして設定
+    foreach ($rows as &$row) {
+        $surveySpec = decodeJson($row['survey_spec'] ?? '');
+        $row['deadline'] = $row['end_at'];
+        $row['duration'] = parse_survey_duration($surveySpec);
+        $row['created_at'] = $row['created_at'] ?? null;
+        unset($row['survey_spec'], $row['end_at']);
+    }
+
     $limit = (int)$limit;
     $offset = (int)$offset;
     if ($limit <= 0) {
@@ -305,18 +308,33 @@ function get_homepage_survey_list(string $listType, string $sortOrder, ?int $use
         $offset = 0;
     }
 
-    $params[':limit'] = $limit;
-    $params[':offset'] = $offset;
+    usort($rows, static function (array $a, array $b) use ($sortOrder): int {
+        $deadlineA = (string)($a['deadline'] ?? '');
+        $deadlineB = (string)($b['deadline'] ?? '');
+        $timeA = $deadlineA !== '' ? strtotime($deadlineA) : PHP_INT_MAX;
+        $timeB = $deadlineB !== '' ? strtotime($deadlineB) : PHP_INT_MAX;
 
-    $stmt = executeQuery($sql, $params);
-    $rows = $stmt->fetchAll();
+        $createdA = (string)($a['created_at'] ?? '');
+        $createdB = (string)($b['created_at'] ?? '');
+        $createdTimeA = $createdA !== '' ? strtotime($createdA) : 0;
+        $createdTimeB = $createdB !== '' ? strtotime($createdB) : 0;
 
-    foreach ($rows as &$row) {
-        $surveySpec = decodeJson($row['survey_spec'] ?? '');
-        $row['deadline'] = $row['end_at'];
-        $row['duration'] = parse_survey_duration($surveySpec);
-        unset($row['survey_spec'], $row['end_at']);
-    }
+        switch ($sortOrder) {
+            case 'deadline':
+                return $timeA <=> $timeB;
+            case 'duration':
+                return ((int)$a['duration']) <=> ((int)$b['duration']) ?: $timeA <=> $timeB;
+            case 'ended_recent':
+                return $timeB <=> $timeA ?: $createdTimeB <=> $createdTimeA;
+            case 'responses':
+                return ((int)$b['response_count']) <=> ((int)$a['response_count']) ?: $createdTimeB <=> $createdTimeA;
+            case 'start':
+            default:
+                return $createdTimeB <=> $createdTimeA ?: $timeA <=> $timeB;
+        }
+    });
+
+    $rows = array_slice($rows, $offset, $limit);
 
     return array_map(static function (array $row): array {
         return [
