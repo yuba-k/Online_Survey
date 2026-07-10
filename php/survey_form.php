@@ -33,8 +33,6 @@ $spec = [
     'title'       => '',
     'Survey_tag'  => [],
     'questions'   => [],
-    'start_at'    => '',
-    'end_at'      => '',
 ];
 
 if (!empty($_GET['key'])) {
@@ -161,11 +159,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
 
         $spec = [
-            'title'       => $description,
+            'description' => $description,
             'Survey_tag'  => $tags,
             'questions'   => $questions,
-            'start_at'    => $start_at,
-            'end_at'      => $end_at,
         ];
 
         // 目安回答時間は作成者が指定せず、設問タイプと量から自動計算する
@@ -174,14 +170,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $survey_id = $survey['survey_id'] ?? null;
             if ($edit_mode && $survey_id !== null) {
-                $uppdate_data = [
+                $update_data = [
                     'title'       => $title,
                     'survey_spec' => $spec,
                     'start_at'    => $start_at,
                     'end_at'      => $end_at,
                 ];
 
-                update_survey($survey_id,$uppdate_data);
+                update_survey($survey_id, $update_data);
 
                 header("Location: question.php?question_id=" . urlencode($survey_key));
                 exit;
@@ -656,7 +652,7 @@ window.addEventListener("load", () => {
     <div class="section">
         <h2>アンケート説明文</h2>
         <textarea name="description" class="input-text" rows="3"><?= 
-            htmlspecialchars($spec['title'] ?? '', ENT_QUOTES, 'UTF-8') 
+            htmlspecialchars($spec['description'] ?? '', ENT_QUOTES, 'UTF-8') 
         ?></textarea>
     </div>
 
@@ -666,11 +662,11 @@ window.addEventListener("load", () => {
 
         <label>開始日時</label>
         <input type="datetime-local" name="start_at" class="input-text"
-               value="<?= htmlspecialchars($spec['start_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+               value="<?= htmlspecialchars(substr($survey['start_at'] ?? '', 0, 16), ENT_QUOTES, 'UTF-8') ?>">
 
         <label style="margin-top:15px;">終了日時</label>
         <input type="datetime-local" name="end_at" class="input-text"
-               value="<?= htmlspecialchars($spec['end_at'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
+               value="<?= htmlspecialchars(substr($survey['end_at'] ?? '', 0, 16), ENT_QUOTES, 'UTF-8') ?>">
     </div>
 
     <!-- 4. タグ -->

@@ -94,7 +94,7 @@ if(is_null($r)){
     include "header.php";
     echo "<main>";
     echo "<h1>".$r['title']."</h1>";
-    echo "<p>".$r['survey_spec']["title"]."</p>";
+    echo "<p>".$r['survey_spec']['description']."</p>";
     echo "<div id='tag'>";
     echo "<ul>";
     foreach($r["survey_spec"]["Survey_tag"] as $tag){
