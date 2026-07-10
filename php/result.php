@@ -4,6 +4,12 @@ require_once __DIR__ . '/error.php';
 start_sess();
 require_once __DIR__ . '/db.php';
 
+if($_SERVER["REQUEST_METHOD"] == "POST"){
+    if(isset($_POST["commentSend"])){
+        insert_comment($_POST["survey_id"], $_SESSION["user_id"], $_POST["comment"]);
+    }
+}
+
 // アンケートID
 $question_key = $_GET["id"] ?? '';
 $user_id = $_SESSION['user_id'] ?? 1;
@@ -235,12 +241,20 @@ $last_chart_key = end($chart_keys);
 
         <section class="comment-section">
             <h2 class="text-xl font-semibold mb-4">💬 コメント</h2>
-
-            <div class="comment-input-wrap">
+                    
+            <!-- <div class="comment-input-wrap">
                 <textarea id="comment-text-area" rows="3" class="w-full p-2 text-black rounded" placeholder="コメントを入力してください"></textarea><br>
                 <button onclick="postComment()" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded lift-button">送信</button>
-            </div>
-
+            </div> -->
+            <?php if(!is_null($user_id)):?>
+                <form action="" method="post">
+                    <input type="hidden" name="survey_id" value="<?php echo $survey_id ?>">
+                    <textarea name="comment" id="" rows="3" class="w-full p-2 text-black rounded"></textarea>
+                    <button type="submit" name="commentSend" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded lift-button">送信</button>
+                </form>
+            <?php else:?>
+                <p>コメントはログイン後に投稿できます</p>
+            <?php endif?>
             <div id="comment-list" style="max-height: 400px; overflow-y: auto; padding-right: 10px;">
             <?php foreach ($comment_list_data as $row) { 
                 $name = $row["account_name"] ?? $row["username"] ?? 'ゲスト利用者';
