@@ -34,18 +34,18 @@ $spec_data = $survey['survey_spec'];
 $result_key = $survey['result_key'];
 // 判明した survey_id を使って回答データを全件取得
 $responses = get_responses_by_survey_id($survey_id);
-$all_chart_data = [];
-$text_question_results = [];
+$question_results = [];
 
-// 仕様書に定義されている質問（q1, q2...）をすべてループして集計
+// 仕様書に定義されている質問（q1, q2...）を順番に走査して、
+// グラフ結果と自由記述結果を同じ配列にまとめる
 if (isset($spec_data['questions']) && is_array($spec_data['questions'])) {
     foreach ($spec_data['questions'] as $index => $q) {
-        // $q が配列ではない、または 'id' が存在しない不正なデータなら無視して次へ進む
-        if (!is_array($q)){# || !isset($q['id'])) {
+        if (!is_array($q)) {
             continue;
         }
-        $q_id = "q".$index;                // 例: 'q1', 'q2'
-        $q_title = $q['label'] ?? $q['title'] ?? $q_id; // 質問のタイトル
+
+        $q_id = "q" . $index;
+        $q_title = $q['label'] ?? $q['title'] ?? $q_id;
         $q_type = $q['type'] ?? '';
 
         if ($q_type === 'text') {
@@ -70,53 +70,52 @@ if (isset($spec_data['questions']) && is_array($spec_data['questions'])) {
                 }
             }
 
-            $text_question_results[] = [
+            $question_results[] = [
+                'type' => 'text',
+                'q_id' => $q_id,
                 'title' => $q_title,
                 'answers' => $answers,
             ];
             continue;
         }
+
         // この質問に対する選択肢ごとの票数を数える
         $counts = [];
-        foreach ($responses as $index => $response) {
+        foreach ($responses as $response) {
             $answers = $response['answer_data'] ?? [];
             if (isset($answers[$q_id])) {
                 $ans = $answers[$q_id];
-                // チェックボックスなどの複数回答（配列）の場合
                 if (is_array($ans)) {
                     foreach ($ans as $a) {
-                        // null（空っぽ）を配列のキー（名前）にしようとするとエラーになるため、「未回答」などの文字に変換する
                         $answer_key = $a ?? '無効な回答';
                         $counts[$answer_key] = isset($counts[$answer_key]) ? $counts[$answer_key] + 1 : 1;
                     }
-                } 
-                // ラジオボタンなどの単一回答の場合
-                else {
+                } else {
                     $answer_key = $ans ?? '無効な回答';
                     $counts[$answer_key] = isset($counts[$answer_key]) ? $counts[$answer_key] + 1 : 1;
                 }
             }
         }
-        // Chart.jsで扱えるようにラベルとデータ（票数）に分解
+
         $labels = [];
         $data = [];
         foreach ($counts as $answer_value => $count) {
-            $labels[] = (string)$answer_value; // 確実に文字列にする
-            $data[] = $count;          
+            $labels[] = (string)$answer_value;
+            $data[] = $count;
         }
 
-        // グラフ種類の判定（仕様書の設定を反映）
-        $chart_type = $q['result_display'] ?? 'bar'; 
+        $chart_type = $q['result_display'] ?? 'bar';
         if ($chart_type === 'histogram') {
-            $chart_type = 'bar'; // Chart.js用変換
+            $chart_type = 'bar';
         }
 
-        // 質問ID（q1など）をキーにして、集計結果をまとめて保存
-        $all_chart_data[$q_id] = [
-            'title'      => $q_title,
+        $question_results[] = [
+            'type' => 'chart',
+            'q_id' => $q_id,
+            'title' => $q_title,
             'chart_type' => $chart_type,
-            'labels'     => $labels,
-            'data'       => $data
+            'labels' => $labels,
+            'data' => $data,
         ];
     }
 }
@@ -124,8 +123,6 @@ if (isset($spec_data['questions']) && is_array($spec_data['questions'])) {
 // ② コメント一覧取得
 //====================================
 $comment_list_data = get_comments_by_survey_id((int)$survey_id);
-$chart_keys = array_keys($all_chart_data);
-$last_chart_key = end($chart_keys);
 ?>
 
 <!DOCTYPE html>
@@ -194,50 +191,28 @@ $last_chart_key = end($chart_keys);
     <input type="hidden" id="current-survey-id" value="<?= htmlspecialchars((string)$survey_id) ?>">
     <span id="save-status" style="color: gray; font-size: 0.9em; float: right;"></span>
     <h1 class="text-3xl font-bold my-6 text-white">アンケート結果</h1>
-    <?php if(!empty($responses)):?>
+    <?php if (!empty($responses)): ?>
         <div id="survey-results-container">
-        <?php foreach ($all_chart_data as $q_id => $info) { 
-            if ($q_id === $last_chart_key) continue; 
-        ?>
-            <div class="question-block" style="margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px;">
-                <h2 class="text-xl font-semibold mb-4">📊 質問: <?= htmlspecialchars((string)$info['title']) ?></h2>
-                <div style="width: 400px; height: 300px;">
-                    <canvas id="chart-<?= htmlspecialchars((string)$q_id) ?>"></canvas>
-                </div>
-            </div>
-        <?php } ?>
-    </div>
-
-    <?php if ($last_chart_key !== false) { 
-        $last_info = $all_chart_data[$last_chart_key];
-    ?>
-    <div class="flex-container">
-        <div class="flex-item">
-            <h2 class="text-xl font-semibold mb-4">📊 質問: <?= htmlspecialchars((string)$last_info['title']) ?></h2>
-            <div style="width: 100%; max-width: 500px; height: 300px;">
-                <canvas id="chart-<?= htmlspecialchars((string)$last_chart_key) ?>"></canvas>
-            </div>
-        </div>
-    </div>
-    <?php } ?>
-
-    <?php if (!empty($text_question_results)): ?>
-        <section class="comment-section">
-            <h2 class="text-xl font-semibold mb-4">📝 自由記述の結果</h2>
-            <?php foreach ($text_question_results as $textResult): ?>
-                <div class="comment-box" style="margin-bottom: 16px;">
-                    <h3 class="text-lg font-semibold mb-2">質問: <?= htmlspecialchars((string)$textResult['title']) ?></h3>
-                    <?php if (!empty($textResult['answers'])): ?>
-                        <?php foreach ($textResult['answers'] as $answer): ?>
-                            <p style="text-indent: 0; margin-bottom: 0.5rem;">・<?= nl2br(htmlspecialchars($answer)) ?></p>
-                        <?php endforeach; ?>
+            <?php foreach ($question_results as $result): ?>
+                <div class="question-block" style="margin-bottom: 50px; border-bottom: 1px dashed #ccc; padding-bottom: 30px;">
+                    <?php if ($result['type'] === 'chart'): ?>
+                        <h2 class="text-xl font-semibold mb-4">📊 質問: <?= htmlspecialchars((string)$result['title']) ?></h2>
+                        <div style="width: 400px; height: 300px;">
+                            <canvas id="chart-<?= htmlspecialchars((string)$result['q_id']) ?>"></canvas>
+                        </div>
                     <?php else: ?>
-                        <p style="text-indent: 0; margin-bottom: 0;">回答はありません。</p>
+                        <h2 class="text-xl font-semibold mb-4">📝 質問: <?= htmlspecialchars((string)$result['title']) ?></h2>
+                        <?php if (!empty($result['answers'])): ?>
+                            <?php foreach ($result['answers'] as $answer): ?>
+                                <p style="text-indent: 0; margin-bottom: 0.5rem;">・<?= nl2br(htmlspecialchars($answer)) ?></p>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <p style="text-indent: 0; margin-bottom: 0;">回答はありません。</p>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
-        </section>
-        <?php endif; ?>
+        </div>
 
         <section class="comment-section">
             <h2 class="text-xl font-semibold mb-4">💬 コメント</h2>
@@ -286,17 +261,18 @@ $last_chart_key = end($chart_keys);
 Chart.defaults.color = '#ffffff';
 
 // 全質問のグラフ描画JS
-<?php foreach ($all_chart_data as $q_id => $info) { ?>
+<?php foreach ($question_results as $result) { ?>
+<?php if ($result['type'] !== 'chart') continue; ?>
 {
-    const ctx = document.getElementById('chart-<?= htmlspecialchars((string)$q_id) ?>');
+    const ctx = document.getElementById('chart-<?= htmlspecialchars((string)$result['q_id']) ?>');
     if (ctx) {
         new Chart(ctx, {
-            type: '<?= $info['chart_type'] ?>', 
+            type: '<?= htmlspecialchars((string)$result['chart_type']) ?>',
             data: {
-                labels: <?= json_encode($info['labels']) ?>,
+                labels: <?= json_encode($result['labels']) ?>,
                 datasets: [{
                     label: '回答数',
-                    data: <?= json_encode($info['data']) ?>,
+                    data: <?= json_encode($result['data']) ?>,
                     backgroundColor: ['#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0']
                 }]
             },
