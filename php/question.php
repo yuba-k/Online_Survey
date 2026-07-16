@@ -15,10 +15,18 @@ function checkEndAt($end_at,$q_key){
     }
 }
 
+//セッションに回答したアンケートIDが保存されているか確認
+function check_Session_Answers($survey_id) {
+    if (!isset($_SESSION['answered_surveys']) || !is_array($_SESSION['answered_surveys'])) {
+        return false;
+    }
+    return in_array($survey_id, $_SESSION['answered_surveys'], true);
+}
+
 $q_key = $_GET['question_id'] ?? $_GET['id'] ?? '';
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    start_sess();
 }
 
 if (empty($_SESSION['csrf_token'])) {
@@ -61,9 +69,20 @@ if(is_null($r)){
 }else{
     $json = $r["survey_spec"];
     checkEndAt($r["end_at"], $q_key);
+    //ログイン済みの場合、過去の回答を取得
     $current_user_id = $_SESSION['user_id'] ?? null;
     if ($current_user_id !== null && !empty($r['survey_id'])) {
         $previous_response = get_response_by_survey_and_user((int)$r['survey_id'], (int)$current_user_id);
+    }else if ($current_user_id === null && !empty($r['survey_id'])) {
+        //未ログインの場合、セッションに回答したアンケートIDが保存されているか確認
+        //セッションに回答したアンケートIDが保存されている場合、トップページへリダイレクト
+        //リダイレクトの前に回答済みですのポップアップメッセージを数秒表示する
+        if (check_Session_Answers((int)$r['survey_id'])) {
+           // セッションにメッセージを一時保存
+            $_SESSION['flash_message'] = "このアンケートは既に回答されています。";
+            header("Location: index.php");
+            exit();
+        }
     }
     $previous_answers = is_array($previous_response['answer_data'] ?? null) ? $previous_response['answer_data'] : [];
 
