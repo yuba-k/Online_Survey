@@ -3,10 +3,17 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/error.php';
 start_sess();
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/security.php';
+
+$commentError = false;
 
 if($_SERVER["REQUEST_METHOD"] == "POST"){
     if(isset($_POST["commentSend"])){
-        insert_comment($_POST["survey_id"], $_SESSION["user_id"], $_POST["comment"]);
+        if(checkWord($_POST["comment"])){
+            insert_comment($_POST["survey_id"], $_SESSION["user_id"], $_POST["comment"]);
+        }else{
+            $commentError = true;
+        }
     }
 }
 
@@ -258,6 +265,28 @@ $comment_list_data = get_comments_by_survey_id((int)$survey_id);
     <?php else:?>
         <p>回答はまだありません</p>
     <?php endif?>
+    <?php if($commentError): ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const dialog = document.getElementById('comment-error-dialog');
+                if (dialog) {
+                    if (typeof dialog.showModal === 'function') {
+                        dialog.showModal();
+                    } else {
+                        dialog.setAttribute('open', '');
+                    }
+                }
+            });
+        </script>
+        <dialog id="comment-error-dialog" style="border:0; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,0.35); padding:0; max-width:420px; width:min(90vw, 420px);">
+            <form method="dialog" style="margin:0; padding:24px 24px 20px; text-align:center; background:linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);">
+                <div style="font-size:28px; margin-bottom:10px;">⚠️</div>
+                <h3 style="margin:0 0 8px; font-size:18px; color:#111827;">不適切な内容です</h3>
+                <p style="margin:0 0 16px; color:#4b5563; line-height:1.6;">登録できない語が含まれています。<br>別の表現に直してください。</p>
+                <button type="submit" style="border:0; border-radius:999px; padding:10px 18px; background:#2563eb; color:#fff; font-weight:600; cursor:pointer;">閉じる</button>
+            </form>
+        </dialog>
+    <?php endif; ?>
 </main>
 
 <form id="main-form" style="display:none;"></form>
