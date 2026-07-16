@@ -69,146 +69,185 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // 入力値取得
-    $title       = $_POST['title']       ?? '';
-    $description = $_POST['description'] ?? '';
-    $tags_raw    = $_POST['tags']        ?? '';
-
-    $start_at = $_POST['start_at'] ?? '';
-    $end_at   = $_POST['end_at']   ?? '';
-
-    if ($start_at === '' || $end_at === '') {
-        $errors[] = '開始日時と終了日時を入力してください。';
-    }
-
-    $q_labels         = $_POST['q_label']         ?? [];
-    $q_types          = $_POST['q_type']          ?? [];
-    $q_result_display = $_POST['q_result_display'] ?? [];
-    $q_options        = $_POST['q_options']       ?? [];
-
-    // ------------------------------
-    // バリデーション
-    // ------------------------------
-    if (!checkWord($title, 100)) {
-        $errors[] = 'タイトルに禁止文字または文字数超過があります。';
-    }
-    if (!checkWord($description, 500)) {
-        $errors[] = '説明文に禁止文字または文字数超過があります。';
-    }
-
-    // タグ
-    $tags = [];
-    if (trim($tags_raw) !== '') {
-        foreach (explode(',', $tags_raw) as $t) {
-            $t = trim($t);
-            if ($t === '') continue;
-            if (!checkWord($t, 50)) {
-                $errors[] = 'タグに禁止文字または文字数超過があります。';
-            } else {
-                $tags[] = $t;
+    if (isset($_POST['is_revision']) && $_POST['is_revision'] === '1') {
+        // survey_confirm.php から「修正する」ボタンで戻ってきた場合
+        // バリデーションとDB登録をスキップして、データを復元する
+        if (!isset($survey) || !is_array($survey)) {
+            $survey = [];
+        }
+        $survey['title'] = $_POST['title'] ?? '';
+        $survey['start_at'] = $_POST['start_at'] ?? '';
+        $survey['end_at'] = $_POST['end_at'] ?? '';
+        
+        $spec['description'] = $_POST['description'] ?? '';
+        
+        $tags_raw = $_POST['tags'] ?? '';
+        $spec['Survey_tag'] = [];
+        if (trim($tags_raw) !== '') {
+            foreach (explode(',', $tags_raw) as $t) {
+                $t = trim($t);
+                if ($t !== '') {
+                    $spec['Survey_tag'][] = $t;
+                }
             }
         }
-    }
+        
+        $spec['questions'] = [];
+        $q_labels = $_POST['q_label'] ?? [];
+        $q_types = $_POST['q_type'] ?? [];
+        $q_result_displays = $_POST['q_result_display'] ?? [];
+        $q_options = $_POST['q_option'] ?? [];
+        
+        foreach ($q_labels as $i => $label) {
+            $spec['questions'][] = [
+                'label'          => $label,
+                'type'           => $q_types[$i] ?? 'single',
+                'result_display' => $q_result_displays[$i] ?? 'bar',
+                'options'        => $q_options[$i] ?? []
+            ];
+        }
+    } else {
+        // 入力値取得
+        $title       = $_POST['title']       ?? '';
+        $description = $_POST['description'] ?? '';
+        $tags_raw    = $_POST['tags']        ?? '';
 
-    // 質問
-    $questions = [];
-    foreach ($q_labels as $i => $label) {
+        $start_at = $_POST['start_at'] ?? '';
+        $end_at   = $_POST['end_at']   ?? '';
 
-        $label = trim($label);
-        if ($label === '') continue;
-
-        if (!checkWord($label, 200)) {
-            $errors[] = '質問文に禁止文字または文字数超過があります。';
-            continue;
+        if ($start_at === '' || $end_at === '') {
+            $errors[] = '開始日時と終了日時を入力してください。';
         }
 
-        $type = $q_types[$i] ?? 'single';
-        if (!in_array($type, ['single', 'multiple', 'text'], true)) {
-            $errors[] = '質問タイプが不正です。';
-            continue;
+        $q_labels         = $_POST['q_label']         ?? [];
+        $q_types          = $_POST['q_type']          ?? [];
+        $q_result_display = $_POST['q_result_display'] ?? [];
+        $q_options        = $_POST['q_options']       ?? [];
+    
+        // ------------------------------
+        // バリデーション
+        // ------------------------------
+        if (!checkWord($title, 100)) {
+            $errors[] = 'タイトルに禁止文字または文字数超過があります。';
+        }
+        if (!checkWord($description, 500)) {
+            $errors[] = '説明文に禁止文字または文字数超過があります。';
         }
 
-        $display = $q_result_display[$i] ?? 'bar';
-        if (!in_array($display, ['bar', 'pie', 'line', 'table'], true)) {
-            $display = 'bar';
-        }
-
-        $opts = [];
-        if ($type !== 'text') {
-            $opt_raw = $q_options[$i] ?? '';
-            foreach (explode(',', $opt_raw) as $o) {
-                $o = trim($o);
-                if ($o === '') continue;
-                if (!checkWord($o, 100)) {
-                    $errors[] = '選択肢に禁止文字または文字数超過があります。';
+        // タグ
+        $tags = [];
+        if (trim($tags_raw) !== '') {
+            foreach (explode(',', $tags_raw) as $t) {
+                $t = trim($t);
+                if ($t === '') continue;
+                if (!checkWord($t, 50)) {
+                    $errors[] = 'タグに禁止文字または文字数超過があります。';
                 } else {
-                    $opts[] = $o;
+                    $tags[] = $t;
                 }
             }
         }
 
-        $questions[] = [
-            'label'          => $label,
-            'type'           => $type,
-            'options'        => $type === 'text' ? [] : $opts,
-            'result_display' => $display,
-        ];
-    }
+        // 質問
+        $questions = [];
+        foreach ($q_labels as $i => $label) {
 
-    // 空の要素だけの場合は空扱いにする
-    $questions = array_filter($questions, fn($q) => !empty($q['label']));
+            $label = trim($label);
+            if ($label === '') continue;
 
-    if (empty($questions)) {
-        $errors[] = '少なくとも1つの質問を作成してください。';
-    }
-
-    // ------------------------------
-    // エラーなし → DB 登録
-    // ------------------------------
-    if (empty($errors)) {
-
-        $spec = [
-            'description' => $description,
-            'Survey_tag'  => $tags,
-            'questions'   => $questions,
-        ];
-
-        // 目安回答時間は作成者が指定せず、設問タイプと量から自動計算する
-        unset($spec['estimated_minutes'], $spec['duration']);
-
-        try {
-            $survey_id = $survey['survey_id'] ?? null;
-            if ($edit_mode && $survey_id !== null) {
-                $update_data = [
-                    'title'       => $title,
-                    'survey_spec' => $spec,
-                    'start_at'    => $start_at,
-                    'end_at'      => $end_at,
-                ];
-
-                update_survey($survey_id, $update_data);
-
-                header("Location: question.php?question_id=" . urlencode($survey_key));
-                exit;
-
-            } else {
-
-                $new_key = insert_survey(
-                    $user_id,
-                    $title,
-                    $spec,
-                    $start_at,
-                    $end_at
-                );
-
-                header("Location: question.php?question_id=" . urlencode($new_key));
-                exit;
+            if (!checkWord($label, 200)) {
+                $errors[] = '質問文に禁止文字または文字数超過があります。';
+                continue;
             }
 
-        } catch (Throwable $e) {
-            die("error". $e->getMessage());
-            // $errors[] = '登録中にエラーが発生しました。';
-            // writeLog('survey_form', 'ERROR', '登録エラー: ' . $e->getMessage());
+            $type = $q_types[$i] ?? 'single';
+            if (!in_array($type, ['single', 'multiple', 'text'], true)) {
+                $errors[] = '質問タイプが不正です。';
+                continue;
+            }
+
+            $display = $q_result_display[$i] ?? 'bar';
+            if (!in_array($display, ['bar', 'pie', 'line', 'table'], true)) {
+                $display = 'bar';
+            }
+
+            $opts = [];
+            if ($type !== 'text') {
+                $opt_raw = $q_options[$i] ?? '';
+                foreach (explode(',', $opt_raw) as $o) {
+                    $o = trim($o);
+                    if ($o === '') continue;
+                    if (!checkWord($o, 100)) {
+                        $errors[] = '選択肢に禁止文字または文字数超過があります。';
+                    } else {
+                        $opts[] = $o;
+                    }
+                }
+            }
+
+            $questions[] = [
+                'label'          => $label,
+                'type'           => $type,
+                'options'        => $type === 'text' ? [] : $opts,
+                'result_display' => $display,
+            ];
+        }
+
+        // 空の要素だけの場合は空扱いにする
+        $questions = array_filter($questions, fn($q) => !empty($q['label']));
+
+        if (empty($questions)) {
+            $errors[] = '少なくとも1つの質問を作成してください。';
+        }
+
+        // ------------------------------
+        // エラーなし → DB 登録
+        // ------------------------------
+        if (empty($errors)) {
+
+            $spec = [
+                'description' => $description,
+                'Survey_tag'  => $tags,
+                'questions'   => $questions,
+            ];
+
+            // 目安回答時間は作成者が指定せず、設問タイプと量から自動計算する
+            unset($spec['estimated_minutes'], $spec['duration']);
+
+            try {
+                $survey_id = $survey['survey_id'] ?? null;
+                if ($edit_mode && $survey_id !== null) {
+                    $update_data = [
+                        'title'       => $title,
+                        'survey_spec' => $spec,
+                        'start_at'    => $start_at,
+                        'end_at'      => $end_at,
+                    ];
+
+                    update_survey($survey_id, $update_data);
+
+                    header("Location: question.php?question_id=" . urlencode($survey_key));
+                    exit;
+
+                } else {
+
+                    $new_key = insert_survey(
+                        $user_id,
+                        $title,
+                        $spec,
+                        $start_at,
+                        $end_at
+                    );
+
+                    header("Location: question.php?question_id=" . urlencode($new_key));
+                    exit;
+                }
+
+            } catch (Throwable $e) {
+                die("error". $e->getMessage());
+                // $errors[] = '登録中にエラーが発生しました。';
+                // writeLog('survey_form', 'ERROR', '登録エラー: ' . $e->getMessage());
+            }
         }
     }
 }

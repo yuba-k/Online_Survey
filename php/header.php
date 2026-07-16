@@ -41,7 +41,7 @@ $surveys = get_all_survey_titles();
 <header class="w-full bg-[#1e3a8a] text-white fixed top-0 left-0 h-16 z-[9999] shadow-lg">
   <input type="hidden" id="csrf_token" value="<?php echo htmlspecialchars($csrf_token, ENT_QUOTES, 'UTF-8'); ?>">
 
-  <div class="max-w-6xl mx-auto h-full flex items-center justify-between px-6">
+  <div class="w-full h-full flex items-center justify-between px-6">
     <div class="flex items-center gap-4">
       <a href="index.php" class="text-2xl hover:text-blue-300 transition-colors"><i class="fa-solid fa-house"></i></a>
       <span class="font-bold text-lg tracking-wider">村上製作所</span>

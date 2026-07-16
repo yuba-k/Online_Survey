@@ -125,17 +125,89 @@ try {
 <head>
     <meta charset="UTF-8">
     <title>アンケート作成 - 完了</title>
+    <!-- ヘッダー・フッター用のCSS読み込み -->
+    <link rel="stylesheet" href="../css/reset.css">
+    <link rel="stylesheet" href="../css/footer.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 背景と全体のレイアウト */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: #1e2d5a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+        }
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            margin-top: 64px; /* ヘッダーの高さ分下げる */
+        }
+        /* header用の強制CSS（配置修正済み） */
+        header.w-full.bg-\[\#1e3a8a\] {
+            background-color: #1E3A8A !important;
+            height: 64px !important;
+            padding-left: 24px !important;
+            padding-right: 24px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+        }
+        header .fa-house, header .fa-bell { color: #ffffff !important; font-size: 26px !important; }
+        header .font-bold { color: #ffffff !important; font-size: 22px !important; font-weight: bold !important; }
+        header input#survey-search { background: #ffffff !important; border-radius: 8px !important; padding: 8px 12px !important; color: #333 !important; width: 220px !important; border: none !important; outline: none !important; }
+        
+        /* 完了画面特有のポップアップアニメーション */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
 </head>
 
-<body class="bg-[#1E2D5A] flex items-center justify-center min-h-screen">
-    <div class="bg-[#24376F] p-8 rounded-2xl shadow-2xl border border-white/10 w-full max-w-md text-center">
-        <h1 class="text-3xl font-bold mb-6 text-white">作成が完了しました</h1>
-        <p class="text-gray-300 mb-8">アンケートが正常に作成されました。</p>
+<body>
+    <?php include 'header.php'; ?>
 
-        <a href="index.php" class="bg-blue-600 text-white py-2 px-6 rounded hover:bg-blue-700 transition font-medium">
-            トップへ戻る
-        </a>
-    </div>
+    <main>
+        <!-- 中央の完了メッセージカード -->
+        <div class="bg-[#24376F] p-10 rounded-2xl shadow-2xl border border-white/10 w-full max-w-lg mx-4 my-8 text-center animate-pop-in">
+            
+            <!-- 成功アイコン（緑色の丸にチェックマーク） -->
+            <div class="w-24 h-24 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                <i class="fa-solid fa-check text-5xl text-white"></i>
+            </div>
+            
+            <h1 class="text-3xl font-bold mb-4 text-white tracking-wide">作成が完了しました！</h1>
+            
+            <p class="text-slate-300 mb-10 leading-relaxed text-lg">
+                新しいアンケートが正常に登録されました。<br>
+                さっそく回答の収集を開始できます。
+            </p>
+
+            <!-- ボタンエリア -->
+            <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
+                
+                <!-- ホームへ戻るボタン -->
+                <a href="index.php" 
+                   class="w-full sm:w-auto px-8 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-xl transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 flex items-center justify-center">
+                    <i class="fa-solid fa-house mr-2"></i> ホームへ戻る
+                </a>
+
+            </div>
+        </div>
+    </main>
+
+    <?php include 'footer.php'; ?>
 </body>
 </html>
