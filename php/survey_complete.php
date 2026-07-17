@@ -170,8 +170,30 @@ try {
             70% { transform: scale(1.05); opacity: 1; }
             100% { transform: scale(1); opacity: 1; }
         }
+        @keyframes buttonFadeUp {
+            0% { opacity: 0; transform: translateY(12px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
         .animate-pop-in {
             animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        .animate-button-pop {
+            animation: buttonFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation-delay: 0.08s;
+        }
+        .survey-complete-button {
+            transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, filter 0.18s ease;
+            transform: translateY(0);
+            will-change: transform;
+        }
+        .survey-complete-button:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+            filter: brightness(1.05);
+        }
+        .survey-complete-button:active {
+            transform: translateY(-1px) scale(0.99);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16);
         }
     </style>
 </head>
@@ -199,10 +221,12 @@ try {
             <div class="flex flex-col sm:flex-row justify-center items-center gap-4">
                 
                 <!-- ホームへ戻るボタン -->
-                <a href="index.php" 
-                   class="w-full sm:w-auto px-8 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-xl transition-all duration-200 shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 flex items-center justify-center">
-                    <i class="fa-solid fa-house mr-2"></i> ホームへ戻る
-                </a>
+                <div class="animate-button-pop w-full sm:w-auto">
+                    <a href="index.php" 
+                       class="w-full px-8 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-slate-400 flex items-center justify-center survey-complete-button">
+                        <i class="fa-solid fa-house mr-2"></i> ホームへ戻る
+                    </a>
+                </div>
 
             </div>
         </div>

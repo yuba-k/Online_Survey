@@ -53,6 +53,39 @@ $_SESSION['survey_edit_key'] = $survey_key;
         header .fa-house, header .fa-bell { color: #ffffff !important; font-size: 26px !important; }
         header .font-bold { color: #ffffff !important; font-size: 22px !important; font-weight: bold !important; }
         header input#survey-search { background: #ffffff !important; border-radius: 8px !important; padding: 8px 12px !important; color: #333 !important; width: 220px !important; border: none !important; outline: none !important; }
+
+        @keyframes buttonFadeUp {
+            0% { opacity: 0; transform: translateY(12px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .animate-button-pop {
+            animation: buttonFadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+            animation-delay: 0.08s;
+        }
+
+        .survey-confirm-button,
+        .survey-complete-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.18s ease, filter 0.18s ease;
+            transform: translateY(0);
+            will-change: transform;
+        }
+
+        .survey-confirm-button:hover,
+        .survey-complete-button:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+            filter: brightness(1.05);
+        }
+
+        .survey-confirm-button:active,
+        .survey-complete-button:active {
+            transform: translateY(-1px) scale(0.99);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.16);
+        }
     </style>
 </head>
 
@@ -107,17 +140,21 @@ $_SESSION['survey_edit_key'] = $survey_key;
                 ?>
 
                 <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-8">
-                    <button type="submit" 
-                            name="is_revision"
-                            value="1"
-                            formaction="survey_form.php" 
-                            class="w-full sm:w-auto px-8 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-xl transition-all duration-200 shadow-md text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400">
-                        修正する
-                    </button>
-                    <button type="submit" 
-                            class="w-full sm:w-auto px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all duration-200 shadow-md text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400">
-                        この内容で作成する
-                    </button>
+                    <div class="animate-button-pop w-full sm:w-auto">
+                        <button type="submit" 
+                                name="is_revision"
+                                value="1"
+                                formaction="survey_form.php" 
+                                class="w-full px-8 py-3 bg-slate-600 hover:bg-slate-500 text-white font-bold rounded-xl shadow-md text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400 survey-confirm-button">
+                            修正する
+                        </button>
+                    </div>
+                    <div class="animate-button-pop w-full sm:w-auto text-center" style="animation-delay: 0.15s;">
+                        <button type="submit" 
+                                class="w-full px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md text-center cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 survey-complete-button">
+                            この内容で作成する
+                        </button>
+                    </div>
                 </div>
             </form>
 
