@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $display = $q_result_display[$i] ?? 'bar';
-            if (!in_array($display, ['bar', 'pie', 'line', 'table'], true)) {
+            if (!in_array($display, ['bar', 'band', 'pie', 'line', 'table', 'text'], true)) {
                 $display = 'bar';
             }
 
@@ -645,9 +645,9 @@ function addQuestion(existingData = null) {
         <label>結果表示形式</label>
         <select name="q_result_display[${index}]" class="input-select">
             <option value="bar" ${existingData?.result_display === 'bar' ? 'selected' : ''}>ヒストグラム</option>
+            <option value="band" ${existingData?.result_display === 'band' ? 'selected' : ''}>帯グラフ</option>
             <option value="table" ${existingData?.result_display === 'table' ? 'selected' : ''}>集計表</option>
             <option value="pie" ${existingData?.result_display === 'pie' ? 'selected' : ''}>円グラフ</option>
-            <option value="pie3d" ${existingData?.result_display === 'pie3d' ? 'selected' : ''}>3D円グラフ</option>
             <option value="text" ${existingData?.result_display === 'text' ? 'selected' : ''}>テキスト</option>
         </select>
 
