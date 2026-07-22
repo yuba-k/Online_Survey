@@ -209,7 +209,7 @@ if (!empty($_SESSION['flash_message'])) {
     <link rel="stylesheet" href="css/footer.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
-        
+    <link rel="stylesheet" href="../css/footer.css">
     <style>
         body { 
             font-family: 'Hiragino Kaku Gothic ProN', 'Segoe UI', Meiryo, sans-serif; 
@@ -1275,7 +1275,7 @@ if (!empty($_SESSION['flash_message'])) {
             }
         });
     </script>
-
+<!-- 
     <style>
         footer {
             display: block !important;
@@ -1294,7 +1294,7 @@ if (!empty($_SESSION['flash_message'])) {
             margin-left: auto !important;
             margin-right: auto !important;
         }
-    </style>
+    </style> -->
     
     <div class="h-8"></div>
     <?php require_once "footer.php"; ?>

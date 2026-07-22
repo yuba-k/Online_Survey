@@ -43,7 +43,10 @@ function checkWord(string $user_input, int $max_length = 50):bool{
             return false;
         }
         $target = str_replace($normalize,"",$target);
-        $black_list = get_forbidden_words();
+        $black_list = array_map(
+            fn($w) => Normalizer::normalize($w, Normalizer::FORM_KC),
+            get_fobidden_words()
+        );
         foreach($black_list as $word){
             if(safe_strpos($target,$word) !== false){
                 writeLog(__FILE__."::".__FUNCTION__, "WARNING", "不正な入力です:$user_input");
