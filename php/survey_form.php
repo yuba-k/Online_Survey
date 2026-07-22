@@ -356,7 +356,7 @@ body {
     margin-left: auto;
     margin-right: auto;
     margin-bottom: 40px;
-    background: #1e2d5a; /* ← 指定色 */
+    background: #2a3b7a; /* ← 指定色 */
     padding: 25px;
     border-radius: 12px;
     box-shadow: 0 0 15px rgba(0,0,0,0.15);
@@ -378,8 +378,8 @@ body {
     border: 1px solid #475569; /* 少し明るい紺で枠線 */
     border-radius: 6px;
     margin-top: 5px;
-    background: #2a3b7a; /* ← 指定色 */
-    color: #ffffff; /* 白文字 */
+    background: #ffffff; /* ← 指定色 */
+    color: #000000; /* 黒文字 */
 }
 
 /* 質問ブロック（白 → #1e2d5a） */
@@ -388,7 +388,7 @@ body {
     padding: 15px;
     margin-bottom: 15px;
     border-radius: 6px;
-    background: #1e2d5a; /* ← 指定色 */
+    background: #2a3b7a; /* ← 指定色 */
     color: #ffffff;
 }
 
@@ -616,6 +616,22 @@ function submitDeleteSurvey() {
 // 質問追加（既存構造に合わせる）
 let questionIndex = 1;   // ★ グローバルで管理する
 
+function syncResultDisplay(index) {
+    const typeSelect = document.querySelector(`select[name="q_type[${index}]"]`);
+    const resultWrap = document.getElementById(`result-wrap-${index}`);
+    const resultSelect = document.querySelector(`select[name="q_result_display[${index}]"]`);
+
+    if (typeSelect.value === "text") {
+        resultWrap.style.display = "none";   // ラベル＋セレクトを丸ごと非表示
+        resultSelect.value = "text";         // 内部値はテキスト固定
+    } else {
+        resultWrap.style.display = "block";  // 選択式なら表示
+    }
+}
+
+
+
+
 function addQuestion(existingData = null) {
     const container = document.getElementById('questions');
     const index = questionIndex++;   // ★ これで採番が壊れない
@@ -637,7 +653,8 @@ function addQuestion(existingData = null) {
 
         <label>回答形式</label>
         <select name="q_type[${index}]" class="input-select"
-                onchange="toggleOptions(this, ${index})">
+        onchange="toggleOptions(this, ${index}); syncResultDisplay(${index});">
+
             <option value="single" ${existingData?.type === 'single' ? 'selected' : ''}>択一選択</option>
             <option value="multiple" ${existingData?.type === 'multiple' ? 'selected' : ''}>複数選択</option>
             <option value="text" ${existingData?.type === 'text' ? 'selected' : ''}>自由記述</option>
@@ -649,19 +666,24 @@ function addQuestion(existingData = null) {
             <button type="button" class="btn-add" onclick="addOption(${index})">＋選択肢追加</button>
         </div>
 
-        <label>結果表示形式</label>
-        <select name="q_result_display[${index}]" class="input-select">
-            <option value="bar" ${existingData?.result_display === 'bar' ? 'selected' : ''}>ヒストグラム</option>
-            <option value="band" ${existingData?.result_display === 'band' ? 'selected' : ''}>帯グラフ</option>
-            <option value="table" ${existingData?.result_display === 'table' ? 'selected' : ''}>集計表</option>
-            <option value="pie" ${existingData?.result_display === 'pie' ? 'selected' : ''}>円グラフ</option>
-            <option value="text" ${existingData?.result_display === 'text' ? 'selected' : ''}>テキスト</option>
-        </select>
+        <div id="result-wrap-${index}">
+    <label>結果表示形式</label>
+    <select name="q_result_display[${index}]" class="input-select">
+        <option value="bar" ${existingData?.result_display === 'bar' ? 'selected' : ''}>ヒストグラム</option>
+        <option value="band" ${existingData?.result_display === 'band' ? 'selected' : ''}>帯グラフ</option>
+        <option value="table" ${existingData?.result_display === 'table' ? 'selected' : ''}>集計表</option>
+        <option value="pie" ${existingData?.result_display === 'pie' ? 'selected' : ''}>円グラフ</option>
+        <option value="text" ${existingData?.result_display === 'text' ? 'selected' : ''}>テキスト</option>
+    </select>
+</div>
+
+
 
         ${deleteButton}
     `;
 
     container.appendChild(div);
+     syncResultDisplay(index);
 
     // 初期選択肢
     if (existingData && existingData.options) {
@@ -868,11 +890,14 @@ window.addEventListener("load", () => {
     </div>
 
     <!-- 4. タグ -->
-    <div class="section">
-        <h2>3. タグ（カンマ区切り） 記入例:PC,容量,スペック</h2>
-        <input type="text" name="tags" class="input-text"
-               value="<?= htmlspecialchars(implode(',', $spec['Survey_tag'] ?? []), ENT_QUOTES, 'UTF-8') ?>">
-    </div>
+<div class="section">
+    <h2>3. タグ（カンマ区切り）</h2>
+
+    <input type="text" name="tags" class="input-text"
+           placeholder="記入例: PC,容量,スペック"
+           value="<?= htmlspecialchars(implode(',', $spec['Survey_tag'] ?? []), ENT_QUOTES, 'UTF-8') ?>">
+</div>
+
 
     <!-- 6. 質問一覧 -->
 <div class="section">
