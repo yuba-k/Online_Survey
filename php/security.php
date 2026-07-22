@@ -6,7 +6,7 @@
 //              False：問題あり
 // @notice checkWord関数でエラーがあった場合にはfalseが返値される
 //
-//require "db.php";
+require_once "db.php";
 require_once "logger.php";
 
 function safe_strlen(string $value): int
@@ -45,7 +45,7 @@ function checkWord(string $user_input, int $max_length = 50):bool{
         $target = str_replace($normalize,"",$target);
         $black_list = array_map(
             fn($w) => Normalizer::normalize($w, Normalizer::FORM_KC),
-            get_fobidden_words()
+            get_forbidden_words()
         );
         foreach($black_list as $word){
             if(safe_strpos($target,$word) !== false){
